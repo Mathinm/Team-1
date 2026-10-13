@@ -14,9 +14,8 @@ FastAPI + PostgreSQL + React, run with Docker.
 - `backend/` FastAPI
 - `frontend/` React
 - `simulators/` POS and sensor simulators
-- `docs/` SRS, SAD, test cases, workflow
+- `docs/` SRS, SAD, test cases
 
-See `docs/workflow.md` for the branch/PR process.
 
 ## Test
     cd backend && pip install -r requirements.txt && python -m pytest -q
