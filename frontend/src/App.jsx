@@ -7,6 +7,8 @@ import LoginPage from "./pages/LoginPage.jsx";
 import ProductsPage from "./pages/ProductsPage.jsx";
 import StockPage from "./pages/StockPage.jsx";
 import SalesPage from "./pages/SalesPage.jsx";
+import DashboardPage from "./pages/DashboardPage.jsx";
+import ReportsPage from "./pages/ReportsPage.jsx";
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -16,9 +18,11 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={user ? <Layout /> : <Navigate to="/login" replace />}>
+        <Route path="/dashboard" element={guard(<DashboardPage />)} />
         <Route path="/products" element={guard(<ProductsPage />)} />
         <Route path="/stock" element={guard(<StockPage />)} />
         <Route path="/sales" element={guard(<SalesPage />)} />
+        <Route path="/reports" element={guard(<ReportsPage />)} />
       </Route>
       <Route path="*" element={<Navigate to={user ? homePathFor(user.role) : "/login"} replace />} />
     </Routes>

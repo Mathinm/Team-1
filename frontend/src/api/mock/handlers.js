@@ -5,6 +5,7 @@
 import { getDb, saveDb, MOCK_USERS } from "./db.js";
 import { addDays, daysBetween, toISODate } from "../../lib/dates.js";
 import { parseCsv } from "../../lib/csv.js";
+import { buildDashboard, buildReport, parseRange } from "./reports.js";
 
 const { ADMIN, MANAGER, STAFF, CASHIER } = {
   ADMIN: "Admin",
@@ -261,6 +262,17 @@ const routes = [
       }
     }
     return { imported, failed: errors.length, errors };
+  }],
+
+  // Dashboard and reports (FR-18)
+  ["GET", /^\/dashboard$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db, now) => buildDashboard(db, now)],
+  ["GET", /^\/reports\/([a-z-]+)\?(.*)$/, [ADMIN, MANAGER], ([, type, qs], _b, _u, db, now) => {
+    const params = new URLSearchParams(qs);
+    const range = parseRange(params.get("from"), params.get("to"));
+    if (!range) fail(400, "INVALID_RANGE", "Choose a valid date range (from must be on or before to)");
+    const report = buildReport(db, type, range, now);
+    if (!report) fail(404, "NOT_FOUND", `Unknown report: ${type}`);
+    return { ...report, from: params.get("from"), to: params.get("to") };
   }],
 ];
 

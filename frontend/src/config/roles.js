@@ -12,9 +12,11 @@ const { ADMIN, MANAGER, STAFF, CASHIER } = ROLES;
 
 // Menu entries in display order. `roles` = who sees the entry.
 export const MENU = [
+  { path: "/dashboard", label: "Dashboard", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/products", label: "Products", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/stock", label: "Stock & FEFO", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/sales", label: "Sales", roles: [ADMIN, CASHIER] },
+  { path: "/reports", label: "Reports", roles: [ADMIN, MANAGER] },
 ];
 
 // Actions inside screens.
