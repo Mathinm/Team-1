@@ -10,6 +10,17 @@ FastAPI + PostgreSQL + React, run with Docker.
 - API docs (Swagger): http://localhost:8000/docs
 - Health: http://localhost:8000/api/health
 
+## Simulators (POS and sensors)
+Both talk to the Device API with a per-device key. Register a device once, then run:
+
+    docker compose exec backend python -m app.device.provision pos-sim pos
+    docker compose exec backend python -m app.device.provision fridge-sensors sensor
+    export PMS_DEVICE_KEY=<key printed above>
+    python simulators/pos_simulator.py        # needs no install, Python 3.10+
+    python simulators/sensor_simulator.py
+
+See `simulators/README.md` for options (one-off events, outage buffering).
+
 ## Folders
 - `backend/` FastAPI
 - `frontend/` React
