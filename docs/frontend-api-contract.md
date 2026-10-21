@@ -39,6 +39,41 @@ Notes
 - **Sales**: 422 with code `INSUFFICIENT_STOCK` or `BATCH_EXPIRED` (FR-7).
 - **Restock**: the UI sends no expiry; the backend sets it from the product's shelf-life.
 
+## Sales behaviour (issue #7)
+
+- Stock is taken **earliest expiry first**; ties go to the older batch. A batch is sellable
+  **through its expiry date** (store calendar day, `STORE_TIMEZONE`), so "expires today" can still be sold.
+- Whole sale or nothing: if it can't be covered, no batch changes.
+- `422 BATCH_EXPIRED` when stock exists but all of it is expired; `422 INSUFFICIENT_STOCK` when the
+  quantity is more than the unexpired stock ("Insufficient stock: only 30 l available");
+  `422 INACTIVE` for a deactivated product; `404` unknown SKU (SKU matching ignores case/spaces).
+- `400`: quantity not > 0 or more than 3 decimals; `piece` products need a whole number; `unit`, if sent,
+  must match the product's unit (`UNIT_MISMATCH`). Malformed bodies also return **400** (not FastAPI's 422)
+  with `error.code = "VALIDATION"`.
+- `remainingStock` = total on hand across all batches (same number as `stock` in `GET /products`).
+- CSV: header names are case-insensitive, UTF-8 (Excel BOM ok), `soldAt` optional (`2026-10-20` or
+  `2026-10-20T14:30`, no timezone = store time), max 1 MB / 5000 rows. Each row is independent;
+  `errors[].line` is the line in the file (header = line 1).
+- Roles: `/sales` and `/sales/csv` need a session token with role Admin or Cashier (401 / 403 otherwise).
+  Tokens are HS256 JWTs signed with `JWT_SECRET`, claims `sub` (userId), `role`, `name`, `exp`.
+
+## Device API (issue #4; SAD 4.3)
+
+For the POS and sensor simulators (and later real devices). No login token: send the device key in
+header `X-Device-Key`. Get a key with `python -m app.device.provision <name> <pos|sensor>`.
+
+| Method & path | Device kind | Request | Response |
+|---|---|---|---|
+| `POST /device/sales` | pos | `{eventId, sku, quantity, unit?, soldAt?}` | 201, same body as `POST /sales` |
+| `POST /device/readings` | sensor | `{eventId, unitId, type, value, recordedAt}` | 200 `{status:"stored", alertRaised}` |
+
+- `type` / `value`: `temperature` = number in °C (-60..100); `door` = `OPEN` or `CLOSED`; `power` = `ON` or `OFF`.
+- `eventId` (string, max 64) must be unique per device. Re-sending a stored event returns **409
+  `DUPLICATE_EVENT`** and changes nothing, so senders may retry safely after an outage.
+- Errors: 401 `INVALID_DEVICE_KEY`; 403 wrong kind of device for the endpoint; 400 malformed data
+  (reading is not stored); sales also return 422 `INSUFFICIENT_STOCK` / `BATCH_EXPIRED`.
+- `alertRaised` is always `false` until the Alerts module (later sprint) evaluates readings.
+
 ## Demo mode
 
 `npm run dev` uses a built-in fake backend (`frontend/src/api/mock/`) that follows

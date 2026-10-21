@@ -18,7 +18,9 @@ services:
     build: ./backend
     restart: always
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://pms:change_me@db:5432/pms}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://pms:password@db:5432/pms}
+      JWT_SECRET: ${JWT_SECRET:-}
+      STORE_TIMEZONE: ${STORE_TIMEZONE:-Asia/Kolkata}
     depends_on:
       db:
         condition: service_healthy

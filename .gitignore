@@ -6,3 +6,7 @@ __pycache__/
 .env
 .pytest_cache/
 pgdata/
+
+# simulator offline buffers
+simulators/*.jsonl
+simulators/__pycache__/
