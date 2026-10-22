@@ -1,9 +1,10 @@
-"""DEV ONLY: load the frontend's demo shop and print login tokens, so the sales and device
-endpoints can be tried before login (#3) and products/batches (#5, #6) are merged.
+"""DEV ONLY: load the frontend's demo shop, so the sales and device endpoints can be tried
+before products/batches (#5, #6) are merged. Log in with POST /api/auth/login to get a token
+(cashier1/cashier123 with SEED_DEMO_USERS=true, or the Admin from .env).
 
     docker compose exec backend python -m app.dev_seed
 
-Safe to run twice (existing SKUs are skipped). Delete this file once #3/#5/#6 are in.
+Safe to run twice (existing SKUs are skipped). Delete this file once #5/#6 are in.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,6 @@ from sqlalchemy import select
 
 from app.db import Base, SessionLocal, engine
 from app.models import Batch, Product, Supplier
-from app.rbac import ADMIN, CASHIER, create_access_token
 from app.sales.fefo import store_today
 
 # sku, name, category, unit, price, [(quantity, days until expiry), ...]
@@ -46,9 +46,7 @@ def main() -> None:
                              expiry_date=today + timedelta(days=days)))
         db.commit()
     print("Demo products loaded: " + ", ".join(d[0] for d in DEMO))
-    for user, role in (("cashier1", CASHIER), ("admin", ADMIN)):
-        token = create_access_token(user, role, user, expires_in=8 * 3600)
-        print(f"\n{role} token (valid 8 h). Header:  Authorization: Bearer <token>\n{token}")
+    print("Log in with POST /api/auth/login to get a token.")
 
 
 if __name__ == "__main__":

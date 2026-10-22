@@ -1,6 +1,6 @@
 import os
 
-os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("JWT_SECRET", "test-secret-that-is-at-least-32-bytes-long")
 os.environ.setdefault("STORE_TIMEZONE", "Asia/Kolkata")
 
 from datetime import datetime, timedelta, timezone  # noqa: E402
@@ -12,12 +12,15 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+from app.auth.passwords import hash_password  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.device.auth import create_device  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Batch, Product, Supplier  # noqa: E402
+from app.models import Batch, Product, Supplier, User, UserSession  # noqa: E402
 from app.rbac import create_access_token  # noqa: E402
 from app.sales.fefo import store_today  # noqa: E402
+
+_current: dict = {}  # the test's session factory, so auth() can create users and sessions
 
 
 @pytest.fixture()
@@ -26,7 +29,9 @@ def Session():
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine, autoflush=False)
+    factory = sessionmaker(bind=engine, autoflush=False)
+    _current["Session"] = factory
+    return factory
 
 
 @pytest.fixture()
@@ -88,12 +93,39 @@ def seeded(db):
     return db
 
 
+PASSWORD = "Passw0rd!"
+
+
+def make_user(user_id, role, password=PASSWORD, active=True):
+    """Create (or update the role of) a user in the test database."""
+    with _current["Session"]() as s:
+        user = s.query(User).filter_by(user_id=user_id).one_or_none()
+        if user is None:
+            user = User(user_id=user_id, name=user_id, email=f"{user_id}@example.com",
+                        role=role, password_hash=hash_password(password), active=active)
+            s.add(user)
+        else:
+            user.role = role
+        s.commit()
+        return user.id
+
+
 def auth(user_id="cashier1", role="Cashier"):
-    return {"Authorization": f"Bearer {create_access_token(user_id, role, 'Test User')}"}
+    """Header for a logged-in user: creates the user and an open session, like a real login."""
+    user_pk = make_user(user_id, role)
+    sid = f"test-{user_id}-{os.urandom(4).hex()}"
+    with _current["Session"]() as s:
+        s.add(UserSession(sid=sid, user_pk=user_pk))
+        s.commit()
+    return {"Authorization": f"Bearer {create_access_token(user_id, role, user_id, sid=sid)}"}
+
+
+def login(client, user_id, password=PASSWORD):
+    return client.post("/api/auth/login", json={"userId": user_id, "password": password})
 
 
 @pytest.fixture()
-def cashier():
+def cashier(Session):
     return auth()
 
 

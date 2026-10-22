@@ -19,7 +19,9 @@ services:
     restart: always
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://pms:password@db:5432/pms}
-      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-true}
       STORE_TIMEZONE: ${STORE_TIMEZONE:-Asia/Kolkata}
     depends_on:
       db:
