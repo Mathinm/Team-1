@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.passwords import verify_password
+from app.auth.passwords import hash_password, needs_rehash, verify_password
 from app.auth.schemas import LoginIn, LoginOut, MeOut
 from app.config import get_settings
 from app.db import get_db
@@ -30,6 +30,9 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     if not ok or user is None or not user.active:
         log.info("login failed: user=%s", body.userId)  # never log the password
         raise ApiError(401, "INVALID_CREDENTIALS", INVALID_LOGIN)
+
+    if needs_rehash(user.password_hash):  # keep stored hashes at today's strength (NFR-9)
+        user.password_hash = hash_password(body.password)
 
     sid = secrets.token_urlsafe(24)
     db.add(UserSession(sid=sid, user_pk=user.id))

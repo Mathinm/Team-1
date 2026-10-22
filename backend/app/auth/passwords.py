@@ -18,6 +18,11 @@ def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
 
+def needs_rehash(password_hash: str) -> bool:
+    """True when the hash was made with weaker settings than today's (e.g. after an upgrade)."""
+    return _hasher.check_needs_rehash(password_hash)
+
+
 def verify_password(password: str, password_hash: str | None) -> bool:
     try:
         ok = _hasher.verify(password_hash or _DUMMY_HASH, password)
