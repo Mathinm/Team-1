@@ -144,3 +144,40 @@ class SensorReading(Base):
     value_text: Mapped[str | None] = mapped_column(String(10), nullable=True)  # OPEN/CLOSED, ON/OFF
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # original time
     received_at: Mapped[datetime] = _now_col()
+
+
+# ---------------------------------------------------------------- users and login (S1-1, #3)
+ROLES = ("Admin", "Manager", "Inventory Staff", "Cashier")
+
+
+class User(Base):
+    """A person who logs in. Never deleted, only deactivated, so past records keep their author."""
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('Admin', 'Manager', 'Inventory Staff', 'Cashier')", name="ck_users_role"
+        ),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    user_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # login name
+    name: Mapped[str] = mapped_column(String(100))
+    email: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(20))
+    # argon2id hash; the random per-user salt is stored inside it (NFR-9). Never the password.
+    password_hash: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = _now_col()
+
+
+class UserSession(Base):
+    """One row per login. Logout or deactivation ends it, so its token stops working at once."""
+
+    __tablename__ = "user_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sid: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # the token's "sid"
+    user_pk: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = _now_col()
+    last_seen_at: Mapped[datetime] = _now_col()  # S2-9 idle logout compares against this
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
