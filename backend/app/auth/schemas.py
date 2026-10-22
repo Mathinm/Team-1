@@ -19,3 +19,4 @@ class MeOut(BaseModel):
     userId: str
     name: str
     role: str
+    menu: list[str]  # screens this role may open (SEC-2)

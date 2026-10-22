@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 
 import jwt
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,15 @@ from app.models import User, UserSession
 log = logging.getLogger("pms.security")
 
 ADMIN, MANAGER, STAFF, CASHIER = "Admin", "Manager", "Inventory Staff", "Cashier"
+
+# Screens each role may open, returned by GET /api/auth/me so the UI can hide the rest.
+# Keep in step with MENU in frontend/src/config/roles.js. The server still checks every call.
+ROLE_MENUS: dict[str, list[str]] = {
+    ADMIN: ["products", "stock", "sales", "users"],
+    MANAGER: ["products", "stock"],
+    STAFF: ["products", "stock"],
+    CASHIER: ["sales"],
+}
 SESSION_ENDED = "Your session has ended. Please log in again."
 
 
@@ -77,9 +86,12 @@ def get_current_user(
 def require_roles(*roles: str):
     """Dependency: 401 without a valid session, 403 (logged) for the wrong role."""
 
-    def check(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    def check(request: Request, user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
         if user.role not in roles:
-            log.warning("access denied: user=%s role=%s, needs %s", user.user_id, user.role, roles)
+            log.warning(
+                "ACCESS_DENIED user=%s role=%s method=%s path=%s needs=%s",
+                user.user_id, user.role, request.method, request.url.path, ",".join(roles),
+            )
             raise ApiError(403, "FORBIDDEN", "You don't have permission to do that.")
         return user
 

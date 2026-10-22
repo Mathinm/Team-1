@@ -14,7 +14,13 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import User, UserSession
-from app.rbac import CurrentUser, create_access_token, get_current_session, get_current_user
+from app.rbac import (
+    ROLE_MENUS,
+    CurrentUser,
+    create_access_token,
+    get_current_session,
+    get_current_user,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 log = logging.getLogger("pms.security")
@@ -54,4 +60,5 @@ def logout(session: UserSession = Depends(get_current_session), db: Session = De
 
 @router.get("/me", response_model=MeOut)
 def me(user: CurrentUser = Depends(get_current_user)):
-    return MeOut(userId=user.user_id, name=user.name, role=user.role)
+    return MeOut(userId=user.user_id, name=user.name, role=user.role,
+                 menu=ROLE_MENUS.get(user.role, []))
