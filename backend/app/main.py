@@ -8,6 +8,7 @@ from app.auth.seed import seed_users
 from app.db import Base, SessionLocal, engine
 from app.device.router import router as device_router
 from app.errors import register_error_handlers
+from app.products.router import router as products_router
 from app.sales.router import router as sales_router
 from app.users.router import router as users_router
 
@@ -30,6 +31,7 @@ app.include_router(auth_router)
 app.include_router(sales_router)
 app.include_router(device_router)
 app.include_router(users_router)
+app.include_router(products_router)
 
 
 @app.get("/api/health")
