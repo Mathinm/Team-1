@@ -2,11 +2,9 @@
 
 Every store record carries store_id (NFR-14). Column names follow the frontend API contract.
 
-PROVISIONAL: Supplier, Product and Batch belong to issues #5 (products) and #6 (batches).
-They are defined here, with the columns the sales/device code needs, so this branch runs on
-its own. When #5/#6 merge, drop these three classes and import the real ones; keep the
-attribute names used in app/sales/fefo.py (sku, active, unit, selling_price, quantity,
-expiry_date, product_id).
+Supplier and Product are the product master data from issue #5 (API in app/products/);
+Batch is from issue #6 (API in app/batches/). The sales code in app/sales/fefo.py relies on
+the attribute names sku, active, unit, selling_price, quantity, expiry_date and product_id.
 """
 
 from datetime import date, datetime
@@ -38,7 +36,7 @@ def _now_col():
     return mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-# ---------------------------------------------------------------- provisional (#5, #6)
+# ---------------------------------------------------------- products (#5) and batches (#6)
 class Supplier(Base):
     __tablename__ = "suppliers"
     supplier_id: Mapped[int] = mapped_column(primary_key=True)

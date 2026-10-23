@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.auth.router import router as auth_router
 from app.auth.seed import seed_users
+from app.batches.router import router as batches_router
 from app.db import Base, SessionLocal, engine
 from app.device.router import router as device_router
 from app.errors import register_error_handlers
@@ -32,6 +33,7 @@ app.include_router(sales_router)
 app.include_router(device_router)
 app.include_router(users_router)
 app.include_router(products_router)
+app.include_router(batches_router)
 
 
 @app.get("/api/health")
