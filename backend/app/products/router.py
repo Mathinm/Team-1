@@ -58,7 +58,7 @@ def _find_product(db: Session, product_id: int) -> Product:
 def _values(body: ProductCreate | ProductUpdate) -> dict:
     data = body.model_dump()
     return {
-        "sku": data["sku"].strip(),
+        "sku": data["sku"].strip().upper(),
         "name": data["name"].strip(),
         "category": data["category"].strip(),
         "unit": data["unit"],
