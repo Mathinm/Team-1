@@ -44,6 +44,22 @@ Notes
 - **Sales**: 422 with code `INSUFFICIENT_STOCK` or `BATCH_EXPIRED` (FR-7).
 - **Restock**: the UI sends no expiry; the backend sets it from the product's shelf-life.
 
+## Batches behaviour (issue #6)
+
+- `POST /batches` (Admin, Manager, Inventory Staff): `{productId, supplierId, quantity, unit?, receivedAt, expiryDate}`
+  -> 201 `{batchId, newStock}`. `receivedAt` without a timezone is store time. The expiry date may not be
+  before the day the batch was received (400 "Expiry date must be after received date"); a batch that
+  expires on the day it arrives is allowed.
+- `POST /restocks` (same roles): `{productId, quantity, unit?, supplierId?}` -> 201 `{batchId, newStock}`.
+  A restock is a new batch received now; expiry = today + the product's shelf-life. Without `supplierId`
+  the supplier of the product's latest batch is used (400 if the product has never had a batch).
+- Both: quantity > 0 with at most 3 decimals, `piece` products need whole numbers, `unit` (if sent) must
+  match the product (`UNIT_MISMATCH`). 404 unknown product, 400 unknown supplier, 422 `INACTIVE` for a
+  deactivated product, 403 for Cashier.
+- `GET /batches/fefo?productId=` (any logged-in user): batches with stock, expired ones included,
+  earliest expiry first (ties: older batch first). `daysInStore` and `daysToExpiry` are whole store
+  calendar days; `daysToExpiry` < 0 means expired. 404 unknown product, 400 without `productId`.
+
 ## Sales behaviour (issue #7)
 
 - Stock is taken **earliest expiry first**; ties go to the older batch. A batch is sellable
