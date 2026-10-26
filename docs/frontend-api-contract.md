@@ -32,6 +32,7 @@ user out and sends them to the login page.
 | `PATCH /products/{id}/deactivate` | Admin, Manager | – | 200 product | #5 |
 | `PATCH /products/{id}/activate` **(added)** | Admin, Manager | – | 200 product | #5 |
 | `GET /suppliers` **(added)** | any | – | 200 `[{supplierId, name}]` | #5 |
+| `POST /suppliers` **(added)** | Admin, Manager | `{name}` | 201 `{supplierId, name}`; 409 `DUPLICATE_SUPPLIER` if the name exists (ignoring case and extra spaces); 400 empty or > 120 characters | #30 |
 | `POST /batches` | Admin, Manager, Inventory Staff | `{productId, supplierId, quantity, unit, receivedAt, expiryDate}` | 201 `{batchId, newStock}` | #6 |
 | `POST /restocks` | Admin, Manager, Inventory Staff | `{productId, quantity, unit}` | 201 `{newStock}` | #6 |
 | `GET /batches/fefo?productId={id}` | any | – | 200 `[{batchId, quantity, unit, supplier, receivedAt, expiryDate, daysInStore, daysToExpiry}]`, expiry ascending, only batches with quantity > 0 **(added: unit, supplier, receivedAt)** | #6 |

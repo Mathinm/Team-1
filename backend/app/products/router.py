@@ -11,7 +11,13 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Batch, Product, Supplier
-from app.products.schemas import ProductCreate, ProductOut, ProductUpdate, SupplierOut
+from app.products.schemas import (
+    ProductCreate,
+    ProductOut,
+    ProductUpdate,
+    SupplierCreate,
+    SupplierOut,
+)
 from app.rbac import ADMIN, MANAGER, CurrentUser, get_current_user, require_roles
 
 router = APIRouter(prefix="/api", tags=["products"])
@@ -163,3 +169,32 @@ def list_suppliers(
         .order_by(Supplier.name)
     )
     return [SupplierOut(supplierId=s.supplier_id, name=s.name) for s in suppliers]
+
+
+@router.post("/suppliers", status_code=201, response_model=SupplierOut)
+def create_supplier(
+    body: SupplierCreate,
+    _user: CurrentUser = Depends(managers),
+    db: Session = Depends(get_db),
+):
+    """Add a supplier so stock can be received on a fresh install (Issue #30).
+
+    Names are unique within the store, ignoring case and surrounding spaces.
+    """
+    name = " ".join(body.name.split())
+    if not name:
+        raise ApiError(400, "VALIDATION", "Supplier name is required")
+    store_id = get_settings().store_id
+    duplicate = db.scalar(
+        select(Supplier.supplier_id).where(
+            Supplier.store_id == store_id,
+            func.lower(Supplier.name) == name.lower(),
+        )
+    )
+    if duplicate is not None:
+        raise ApiError(409, "DUPLICATE_SUPPLIER", "A supplier with this name already exists")
+    supplier = Supplier(store_id=store_id, name=name)
+    db.add(supplier)
+    db.commit()
+    db.refresh(supplier)
+    return SupplierOut(supplierId=supplier.supplier_id, name=supplier.name)
