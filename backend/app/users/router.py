@@ -43,7 +43,11 @@ def _end_sessions(db: Session, user: User) -> None:
 
 @router.get("", response_model=list[UserOut])
 def list_users(admin: CurrentUser = Depends(admin_only), db: Session = Depends(get_db)):
-    return [_out(u) for u in db.scalars(select(User).order_by(User.user_id))]
+    """Names and emails are stored encrypted (NFR-11); only an Admin gets them back readable,
+    and every such read is written to the audit log."""
+    users = [_out(u) for u in db.scalars(select(User).order_by(User.user_id))]
+    audit.info("EMPLOYEE_DATA_READ by=%s users=%s", admin.user_id, len(users))
+    return users
 
 
 @router.post("", status_code=201, response_model=UserOut)

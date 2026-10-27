@@ -26,6 +26,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.crypto import EncryptedString
 from app.db import Base
 
 QTY = Numeric(12, 3)  # kg / l can be fractional; 3 decimals
@@ -160,8 +161,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     user_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # login name
-    name: Mapped[str] = mapped_column(String(100))
-    email: Mapped[str] = mapped_column(String(255))
+    # NFR-11: employee name and email are encrypted at rest (app/crypto.py); code sees plain text
+    name: Mapped[str] = mapped_column(EncryptedString)
+    email: Mapped[str] = mapped_column(EncryptedString)
     role: Mapped[str] = mapped_column(String(20))
     # argon2id hash; the random per-user salt is stored inside it (NFR-9). Never the password.
     password_hash: Mapped[str] = mapped_column(String(255))

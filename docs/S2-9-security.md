@@ -67,4 +67,20 @@ Code: `backend/app/auth/reset.py`, table `password_resets`. Email goes through `
 **Existing databases:** this adds three columns to `users` (`otp_code_hash`, `otp_sent_at`, `otp_expires_at`). Tables are created at startup, not migrated, so reset the database once (delete the SQLite file, or `docker compose down -v`).
 
 ## NFR-11 Employee data encrypted at rest (TC-SEC-08)
-To do.
+**What is encrypted:** each user's `name` and `email` in the `users` table. The user ID stays plain because login looks it up, and passwords are already argon2id hashes (NFR-9).
+
+**How:** `backend/app/crypto.py` defines a column type `EncryptedString`. It encrypts on write and decrypts on read, so login, emails and user admin keep working with plain text. The database, its backups and anyone running SQL see only `enc:v1:gAAAAAB...`. The cipher is Fernet from `cryptography` (AES-128-CBC + HMAC-SHA256) with a random IV per value, so the same email stored twice looks different.
+
+**Who reads it:** only the Admin, through `GET /api/users` (other roles get 403, SEC-2). Every such read is written to the audit log as `EMPLOYEE_DATA_READ by=<admin>`.
+
+**Key (`DATA_ENCRYPTION_KEY`)**
+- Make one with `python -m app.crypto` (in `backend`, with the venv on) and put it in `.env`. Never commit it, and keep it apart from database backups: a backup without the key is unreadable.
+- Empty (default): a key is derived from `JWT_SECRET`. That is fine for local work, but set a real key on any shared server.
+- Rotation: `DATA_ENCRYPTION_KEY=<new>,<old>`. New values use the first key, and old values are still readable with either.
+- Losing the key means losing all names and emails. With a wrong key the app raises `DecryptionError` instead of showing ciphertext.
+
+**Limits:** encrypted columns can't be searched or sorted in SQL (`WHERE email = ...`), so filter in Python after loading. Nothing does this today.
+
+**Tests** (`backend/tests/test_employee_data.py`): TC-SEC-08 raw SQL shows no readable name/email; Admin sees plain text; other roles get 403; Admin reads are audit-logged; edited values are encrypted; the same email gives different ciphertext; login returns the decrypted name; emails go to the decrypted address; round trip including non-English names; a wrong key can't decrypt; the configured key is used; key rotation; plain rows from before NFR-11 are readable and get encrypted when changed.
+
+**Existing databases:** the columns become `TEXT` (ciphertext is longer than the old `VARCHAR(100/255)`). PostgreSQL needs a reset once (`docker compose down -v`). On SQLite old rows still work, but delete `pms-local.db` to have everything encrypted.

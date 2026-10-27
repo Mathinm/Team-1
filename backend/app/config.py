@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # Where the web app runs; the emailed link is {frontend_url}/reset-password?token=...
     frontend_url: str = "http://localhost:5173"
 
+    # ---- Employee data encrypted at rest (NFR-11, #18)
+    # Fernet key(s), comma-separated; the first encrypts. Make one: python -m app.crypto
+    # Empty = derived from JWT_SECRET (local development only).
+    data_encryption_key: str = ""
+
     # ---- Email (app/notify.py). SMTP_HOST empty = emails are written to the log instead.
     smtp_host: str = ""
     smtp_port: int = 587
