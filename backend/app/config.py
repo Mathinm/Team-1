@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Also create manager1 / staff1 / cashier1 (the frontend demo logins). Dev and demo only.
     seed_demo_users: bool = False
 
+    # ---- Account protection (SEC-3)
+    # The account locks after this many wrong passwords in a row; an Admin unlocks it.
+    max_failed_logins: int = 5
+    # A session with no request for this long is ended (idle logout).
+    idle_timeout_minutes: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -19,13 +19,14 @@ user out and sends them to the login page.
 
 | Method & path | Who (SEC-2) | Request | Response | Owner issue |
 |---|---|---|---|---|
-| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)** | #3 |
+| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)**; 401 wrong credentials; 423 `ACCOUNT_LOCKED` after 5 wrong passwords in a row | #3, #18 |
 | `POST /auth/logout` | any | – | 204 | #3 |
 | `GET /auth/me` **(added)** | any | – | 200 `{userId, name, role, menu[]}` (`menu` = screens the role may open) | #3 |
 | `GET /users` | Admin | – | 200 `[{userId, name, email, role, active, storeId}]` | #3 |
 | `POST /users` | Admin | `{userId, name, email, role, password}` | 201 user; 409 `USER_EXISTS` | #3 |
 | `PUT /users/{userId}` | Admin | `{name?, email?, role?}` | 200 user | #3 |
 | `PATCH /users/{userId}/deactivate` / `activate` | Admin | – | 200 user | #3 |
+| `PATCH /users/{userId}/unlock` **(added)** | Admin | – | 200 user; users now include `locked` | #18 |
 | `GET /products` **(added)** | any | – | 200 `[{productId, sku, name, category, unit, shelfLifeDays, storageType, tempMin, tempMax, costPrice, sellingPrice, lowStockThreshold, active, stock}]` (`stock` = total on hand) | #5 |
 | `POST /products` | Admin, Manager | product fields + **`sku` (added)** | 201 product | #5 |
 | `PUT /products/{id}` | Admin, Manager | product fields | 200 product | #5 |

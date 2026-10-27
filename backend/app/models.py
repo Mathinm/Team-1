@@ -167,6 +167,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = _now_col()
+    # SEC-3: wrong passwords in a row, and when the account was locked (None = not locked)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class UserSession(Base):
