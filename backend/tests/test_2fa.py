@@ -115,10 +115,10 @@ def test_a_code_works_only_once(client):
     assert again.status_code == 401 and error_code(again) == "INVALID_OTP"
 
 
-def test_code_expires_after_5_minutes(client, db):
+def test_code_expires_after_otp_expire_minutes(client, db):
     make_user("manager1", "Manager")
     code = ask_for_code(client)
-    age_code(db, "manager1", 6)
+    age_code(db, "manager1", get_settings().otp_expire_minutes + 1)
     r = login2(client, "manager1", code)
     assert r.status_code == 401 and error_code(r) == "INVALID_OTP"
 
@@ -244,12 +244,12 @@ def test_mask_email():
 
 
 def test_expiry_is_configurable(client, db, monkeypatch):
-    monkeypatch.setattr(get_settings(), "otp_expire_minutes", 10)
+    monkeypatch.setattr(get_settings(), "otp_expire_minutes", 3)
     make_user("manager1", "Manager")
     code = ask_for_code(client)
     db.expire_all()
     user = db.scalar(select(User).where(User.user_id == "manager1"))
     expires = user.otp_expires_at.replace(tzinfo=timezone.utc)
     left = expires - datetime.now(timezone.utc)
-    assert timedelta(minutes=9) < left <= timedelta(minutes=10)
+    assert timedelta(minutes=2) < left <= timedelta(minutes=3)
     assert login2(client, "manager1", code).status_code == 200

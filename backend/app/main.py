@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.auth.reset import router as reset_router
 from app.auth.router import router as auth_router
 from app.auth.seed import seed_users
 from app.batches.router import router as batches_router
@@ -29,6 +30,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="PMS - Perishables Management System", version="0.1.0", lifespan=lifespan)
 register_error_handlers(app)
 app.include_router(auth_router)
+app.include_router(reset_router)
 app.include_router(sales_router)
 app.include_router(device_router)
 app.include_router(users_router)

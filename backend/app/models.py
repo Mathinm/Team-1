@@ -177,6 +177,18 @@ class User(Base):
                                                             nullable=True)
 
 
+class PasswordReset(Base):
+    """SEC-5: one emailed reset link. Only the token's SHA-256 hash is kept; the link works once."""
+
+    __tablename__ = "password_resets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_pk: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class UserSession(Base):
     """One row per login. Logout or deactivation ends it, so its token stops working at once."""
 

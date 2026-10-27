@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # Asking again sooner than this does not send another email.
     otp_resend_seconds: int = 30
 
+    # ---- Password reset by email (SEC-5, #18)
+    password_reset_expire_minutes: int = 30
+    # Asking again sooner than this does not send another email.
+    password_reset_resend_seconds: int = 60
+    # Where the web app runs; the emailed link is {frontend_url}/reset-password?token=...
+    frontend_url: str = "http://localhost:5173"
+
     # ---- Email (app/notify.py). SMTP_HOST empty = emails are written to the log instead.
     smtp_host: str = ""
     smtp_port: int = 587

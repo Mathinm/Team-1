@@ -4,7 +4,7 @@
    to the user's address and the login answers 401 OTP_REQUIRED (the login page then shows the
    code box).
 2. The user sends user ID + password + otpCode. The right code within OTP_EXPIRE_MINUTES
-   (default 5) logs in; it works once only.
+   (default 10) logs in; it works once only.
 
 Only a keyed hash of the code is stored. A wrong code counts like a wrong password (SEC-3), so
 five wrong codes lock the account and the code cannot be guessed by trial. Asking again within
