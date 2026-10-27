@@ -179,3 +179,33 @@ class UserSession(Base):
     created_at: Mapped[datetime] = _now_col()
     last_seen_at: Mapped[datetime] = _now_col()  # S2-9 idle logout compares against this
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ----------------------------------------------------------------
+# Stock count and non-expiry removals (Sprint 2, Issue #10)
+
+class StockCount(Base):
+    __tablename__ = "stock_counts"
+
+    stock_count_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
+    system_quantity: Mapped[Decimal] = mapped_column(QTY)
+    counted_quantity: Mapped[Decimal] = mapped_column(QTY)
+    variance: Mapped[Decimal] = mapped_column(QTY)
+    reason: Mapped[str] = mapped_column(String(255))
+    recorded_by: Mapped[str] = mapped_column(String(80))
+    recorded_at: Mapped[datetime] = _now_col()
+
+
+class Removal(Base):
+    __tablename__ = "removals"
+
+    removal_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
+    quantity: Mapped[Decimal] = mapped_column(QTY)
+    reason: Mapped[str] = mapped_column(String(40))
+    recorded_by: Mapped[str] = mapped_column(String(80))
+    recorded_at: Mapped[datetime] = _now_col()
+
