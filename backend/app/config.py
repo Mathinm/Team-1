@@ -24,11 +24,25 @@ class Settings(BaseSettings):
     # Also create manager1 / staff1 / cashier1 (the frontend demo logins). Dev and demo only.
     seed_demo_users: bool = False
 
-    # ---- Account protection (SEC-3)
+    # ---- Account protection (SEC-3, #18)
     # The account locks after this many wrong passwords in a row; an Admin unlocks it.
     max_failed_logins: int = 5
     # A session with no request for this long is ended (idle logout).
     idle_timeout_minutes: int = 30
+
+    # ---- Two-factor login for Manager and Admin by emailed code (NFR-10, #18)
+    require_2fa: bool = True
+    otp_expire_minutes: int = 10
+    # Asking again sooner than this does not send another email.
+    otp_resend_seconds: int = 30
+
+    # ---- Email (app/notify.py). SMTP_HOST empty = emails are written to the log instead.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "PMS <no-reply@example.com>"
+    smtp_tls: bool = True  # STARTTLS
 
 
 @lru_cache

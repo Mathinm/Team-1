@@ -29,7 +29,23 @@ Builds on S1-1 (`docs/S1-1-auth.md`). Requirements (SRS v1.0): SEC-3, SEC-5, NFR
 To do.
 
 ## NFR-10 Two-factor authentication for Manager and Admin (TC-SEC-07)
-To do.
+**Method:** a 6-digit code sent to the user's email. Code is in `backend/app/auth/otp.py`; email goes through `backend/app/notify.py` (`send_email()`, also for SEC-5 and alerts).
+
+**How it works**
+1. A Manager or Admin logs in with user ID and password. If those are right and no `otpCode` was sent, a code is emailed and the answer is `401 OTP_REQUIRED` with `details.sentTo` (e.g. `m*******@example.com`). The login page then shows the code box.
+2. The login page sends user ID, password and `otpCode`. If the code is right, the user is logged in; if it is wrong, used or expired, the answer is `401 INVALID_OTP`.
+
+- Other roles log in as before, with no code and no email.
+- The code expires after 5 minutes (`OTP_EXPIRE_MINUTES`), works once, and only a keyed hash of it is stored.
+- A wrong code counts like a wrong password (SEC-3): five wrong codes lock the account (423).
+- A wrong password sends no email. Asking again within 30 s (`OTP_RESEND_SECONDS`) does not send another one, so nobody can flood an inbox.
+- `REQUIRE_2FA=false` switches 2FA off (local work only).
+
+**Email settings:** with `SMTP_HOST` empty (default), no email leaves the machine: it is printed in the backend log (`EMAIL (not sent, SMTP_HOST is empty) ... Your login code is 123456`). Use that for development and the demo. To send real email set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (Gmail: `smtp.gmail.com`, port 587, an app password). In that mode the code is never logged.
+
+**Tests** (`backend/tests/test_2fa.py`): password alone gives OTP_REQUIRED and emails a code (Manager and Admin); wrong code rejected then right code accepted (TC-NFR-13 steps); other roles need no code; wrong password sends no email; right code with wrong password refused; a code works once; expires after 5 minutes; spaces allowed; malformed codes rejected; only a hash is stored; with SMTP the code is never logged; no second email within 30 s; a newer code replaces the old one; 5 wrong codes lock; asking for a code is not a failure; a locked account gets no email; 2FA can be switched off; expiry is configurable.
+
+**Existing databases:** this adds three columns to `users` (`otp_code_hash`, `otp_sent_at`, `otp_expires_at`). Tables are created at startup, not migrated, so reset the database once (delete the SQLite file, or `docker compose down -v`).
 
 ## NFR-11 Employee data encrypted at rest (TC-SEC-08)
 To do.

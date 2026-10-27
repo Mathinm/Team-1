@@ -19,7 +19,7 @@ user out and sends them to the login page.
 
 | Method & path | Who (SEC-2) | Request | Response | Owner issue |
 |---|---|---|---|---|
-| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)**; 401 wrong credentials; 423 `ACCOUNT_LOCKED` after 5 wrong passwords in a row | #3, #18 |
+| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)**; 401 wrong credentials; 423 `ACCOUNT_LOCKED` after 5 wrong passwords in a row; **Manager/Admin: right password without `otpCode` emails a 6-digit code and answers 401 `OTP_REQUIRED` with `details.sentTo` (masked email); wrong, used or expired code 401 `INVALID_OTP`** | #3, #18 |
 | `POST /auth/logout` | any | – | 204 | #3 |
 | `GET /auth/me` **(added)** | any | – | 200 `{userId, name, role, menu[]}` (`menu` = screens the role may open) | #3 |
 | `GET /users` | Admin | – | 200 `[{userId, name, email, role, active, storeId}]` | #3 |

@@ -1,4 +1,4 @@
-"""Login and logout (SEC-1, TC-AUTH-01) with account lockout (SEC-3, TC-AUTH-03)."""
+"""Login and logout (SEC-1, TC-AUTH-01), lockout (SEC-3), emailed 2FA code (NFR-10)."""
 
 import logging
 import secrets
@@ -14,6 +14,7 @@ from app.auth.lockout import (
     record_failed_login,
     reset_failed_logins,
 )
+from app.auth.otp import mask_email, requires_otp, send_code, verify_code
 from app.auth.passwords import hash_password, needs_rehash, verify_password
 from app.auth.schemas import LoginIn, LoginOut, MeOut
 from app.config import get_settings
@@ -52,6 +53,21 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
             raise locked_error()  # this was the 5th wrong password in a row
         db.commit()
         raise ApiError(401, "INVALID_CREDENTIALS", INVALID_LOGIN)
+
+    if requires_otp(user):  # NFR-10: Manager and Admin also need the code we email them
+        if not body.otpCode:
+            send_code(user)
+            db.commit()
+            raise ApiError(401, "OTP_REQUIRED",
+                           f"We emailed a login code to {mask_email(user.email)}. Enter it below.",
+                           details={"sentTo": mask_email(user.email)})
+        if not verify_code(user, body.otpCode):
+            log.info("login failed, wrong 2FA code: user=%s", user.user_id)
+            if record_failed_login(user):  # codes count like passwords, so they can't be guessed
+                db.commit()
+                raise locked_error()
+            db.commit()
+            raise ApiError(401, "INVALID_OTP", "Invalid or expired code")
 
     reset_failed_logins(user)
 

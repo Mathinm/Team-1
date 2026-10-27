@@ -170,6 +170,11 @@ class User(Base):
     # SEC-3: wrong passwords in a row, and when the account was locked (None = not locked)
     failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # NFR-10: the last emailed 2FA code (hash only), when it was sent and when it expires
+    otp_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    otp_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                            nullable=True)
 
 
 class UserSession(Base):
