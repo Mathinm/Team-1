@@ -173,6 +173,8 @@ code { background: #eef1f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9
 .field__hint { color: var(--muted); font-size: 0.82rem; }
 .form__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .check { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.add-supplier { margin-top: 6px; padding: 10px; border: 1px dashed var(--border); border-radius: 8px; background: #fafbfc; }
+.add-supplier__actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
 
 .toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; margin-bottom: 12px; }
 .toolbar .field { min-width: 240px; }

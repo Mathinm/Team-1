@@ -55,6 +55,10 @@ class ProductOut(BaseModel):
     stock: float
 
 
+class SupplierCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
 class SupplierOut(BaseModel):
     supplierId: int
     name: str

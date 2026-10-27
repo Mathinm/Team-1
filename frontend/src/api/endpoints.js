@@ -17,6 +17,7 @@ export const api = {
   deactivateProduct: (id) => request("PATCH", `/products/${id}/deactivate`),
   activateProduct: (id) => request("PATCH", `/products/${id}/activate`),
   listSuppliers: () => request("GET", "/suppliers"),
+  createSupplier: (name) => request("POST", "/suppliers", { name }),
 
   // Stock (FR-2, FR-4, FR-5, FR-6)
   receiveBatch: (body) => request("POST", "/batches", body),

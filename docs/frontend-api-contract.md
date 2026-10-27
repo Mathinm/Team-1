@@ -35,13 +35,22 @@ user out and sends them to the login page.
 | `PATCH /products/{id}/deactivate` | Admin, Manager | – | 200 product | #5 |
 | `PATCH /products/{id}/activate` **(added)** | Admin, Manager | – | 200 product | #5 |
 | `GET /suppliers` **(added)** | any | – | 200 `[{supplierId, name}]` | #5 |
+| `POST /suppliers` **(added)** | Admin, Manager | `{name}` | 201 `{supplierId, name}`; 409 `DUPLICATE_SUPPLIER` if the name exists (ignoring case and extra spaces); 400 empty or > 120 characters | #30 |
 | `POST /batches` | Admin, Manager, Inventory Staff | `{productId, supplierId, quantity, unit, receivedAt, expiryDate}` | 201 `{batchId, newStock}` | #6 |
 | `POST /restocks` | Admin, Manager, Inventory Staff | `{productId, quantity, unit}` | 201 `{newStock}` | #6 |
 | `GET /batches/fefo?productId={id}` | any | – | 200 `[{batchId, quantity, unit, supplier, receivedAt, expiryDate, daysInStore, daysToExpiry}]`, expiry ascending, only batches with quantity > 0 **(added: unit, supplier, receivedAt)** | #6 |
 | `POST /sales` | Admin, Cashier | `{sku, quantity, unit}` | 201 `{saleId, batchesUsed:[{batchId, qty, expiryDate}], remainingStock, productName, unit, amount}` **(added: expiryDate, productName, unit, amount)** | #7 |
 | `POST /sales/csv` | Admin, Cashier | multipart, field `file`; columns `sku,quantity,soldAt` | 200 `{imported, failed, errors:[{line, message}]}` | #7 |
 
-Notes
+## Sprint 2 — Stock management (issue #10)
+
+| Method & path | Who (SEC-2) | Request | Response | Owner issue |
+|---|---|---|---|---|
+| `POST /removals` **(added)** | Admin, Manager, Inventory Staff | `{batchId, qty, reason}`; reason 1–40 characters, e.g. Damaged, Temperature breach, Other | 201 `{removalId, batchId, qty, reason, recordedBy, recordedAt, remainingQuantity}`; 400 invalid input; 404 unknown batch; 422 `INSUFFICIENT_STOCK` if quantity exceeds available stock | #10 |
+| `POST /stock-counts` **(added)** | Admin, Manager, Inventory Staff | `{batchId, countedQuantity, reason}`; `countedQuantity` ≥ 0; reason 1–255 characters | 201 `{stockCountId, batchId, systemQuantity, countedQuantity, variance, reason, recordedBy, recordedAt}`; variance = counted − system; batch quantity updated to counted quantity; 400 invalid input; 404 unknown batch | #10 |
+
+## Notes
+
 - **SKU** is the product code used at the till and in CSV files (e.g. `TOM-01`). It must be unique; return 409 if it isn't.
 - **Expired stock**: `/batches/fefo` still lists expired batches (the UI marks them "Do not sell") until they are removed.
 - **Sales**: 422 with code `INSUFFICIENT_STOCK` or `BATCH_EXPIRED` (FR-7).
@@ -92,16 +101,12 @@ header `X-Device-Key`. Get a key with `python -m app.device.provision <name> <po
 | `POST /device/readings` | sensor | `{eventId, unitId, type, value, recordedAt}` | 200 `{status:"stored", alertRaised}` |
 
 - `type` / `value`: `temperature` = number in °C (-60..100); `door` = `OPEN` or `CLOSED`; `power` = `ON` or `OFF`.
-- `eventId` (string, max 64) must be unique per device. Re-sending a stored event returns **409
-  `DUPLICATE_EVENT`** and changes nothing, so senders may retry safely after an outage.
-- Errors: 401 `INVALID_DEVICE_KEY`; 403 wrong kind of device for the endpoint; 400 malformed data
-  (reading is not stored); sales also return 422 `INSUFFICIENT_STOCK` / `BATCH_EXPIRED`.
+- `eventId` (string, max 64) must be unique per device. Re-sending a stored event returns **409 `DUPLICATE_EVENT`** and changes nothing, so senders may retry safely after an outage.
+- Errors: 401 `INVALID_DEVICE_KEY`; 403 wrong kind of device for the endpoint; 400 malformed data (reading is not stored); sales also return 422 `INSUFFICIENT_STOCK` / `BATCH_EXPIRED`.
 - `alertRaised` is always `false` until the Alerts module (later sprint) evaluates readings.
 
 ## Demo mode
 
-`npm run dev` uses a built-in fake backend (`frontend/src/api/mock/`) that follows
-this contract, controlled by `VITE_USE_MOCK` in `frontend/.env.development`. Set it to
-`false` once the real endpoints are merged. Docker builds always use the real backend.
+`npm run dev` uses a built-in fake backend (`frontend/src/api/mock/`) that follows this contract, controlled by `VITE_USE_MOCK` in `frontend/.env.development`. Set it to `false` once the real endpoints are merged. Docker builds always use the real backend.
 
 Demo accounts: `admin/admin123`, `manager1/manager123`, `staff1/staff123`, `cashier1/cashier123`.

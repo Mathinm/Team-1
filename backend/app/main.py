@@ -12,6 +12,7 @@ from app.device.router import router as device_router
 from app.errors import register_error_handlers
 from app.products.router import router as products_router
 from app.sales.router import router as sales_router
+from app.stock.router import router as stock_router
 from app.users.router import router as users_router
 
 # Show INFO lines from our own loggers (login, audit); uvicorn only sets up its own.
@@ -31,6 +32,7 @@ app = FastAPI(title="PMS - Perishables Management System", version="0.1.0", life
 register_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(reset_router)
+app.include_router(stock_router)
 app.include_router(sales_router)
 app.include_router(device_router)
 app.include_router(users_router)
