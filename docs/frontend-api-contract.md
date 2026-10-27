@@ -19,13 +19,16 @@ user out and sends them to the login page.
 
 | Method & path | Who (SEC-2) | Request | Response | Owner issue |
 |---|---|---|---|---|
-| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)** | #3 |
+| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)**; 401 wrong credentials; 423 `ACCOUNT_LOCKED` after 5 wrong passwords in a row; **Manager/Admin: right password without `otpCode` emails a 6-digit code and answers 401 `OTP_REQUIRED` with `details.sentTo` (masked email); wrong, used or expired code 401 `INVALID_OTP`** | #3, #18 |
 | `POST /auth/logout` | any | – | 204 | #3 |
 | `GET /auth/me` **(added)** | any | – | 200 `{userId, name, role, menu[]}` (`menu` = screens the role may open) | #3 |
-| `GET /users` | Admin | – | 200 `[{userId, name, email, role, active, storeId}]` | #3 |
+| `POST /auth/password-reset` **(added)** | public | `{userId}` | 202 `{message}` (same answer for unknown users); emails `{FRONTEND_URL}/reset-password?token=...` | #18 |
+| `POST /auth/password-reset/confirm` **(added)** | public | `{token, newPassword}` | 200 `{message}`; 400 `RESET_LINK_INVALID` (unknown, used or expired link) | #18 |
+| `GET /users` | Admin | – | 200 `[{userId, name, email, role, active, storeId}]` (name/email stored encrypted, returned readable; each read audit-logged) | #3, #18 |
 | `POST /users` | Admin | `{userId, name, email, role, password}` | 201 user; 409 `USER_EXISTS` | #3 |
 | `PUT /users/{userId}` | Admin | `{name?, email?, role?}` | 200 user | #3 |
 | `PATCH /users/{userId}/deactivate` / `activate` | Admin | – | 200 user | #3 |
+| `PATCH /users/{userId}/unlock` **(added)** | Admin | – | 200 user; users now include `locked` | #18 |
 | `GET /products` **(added)** | any | – | 200 `[{productId, sku, name, category, unit, shelfLifeDays, storageType, tempMin, tempMax, costPrice, sellingPrice, lowStockThreshold, active, stock}]` (`stock` = total on hand) | #5 |
 | `POST /products` | Admin, Manager | product fields + **`sku` (added)** | 201 product | #5 |
 | `PUT /products/{id}` | Admin, Manager | product fields | 200 product | #5 |

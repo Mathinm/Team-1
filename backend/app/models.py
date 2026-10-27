@@ -26,6 +26,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.crypto import EncryptedString
 from app.db import Base
 
 QTY = Numeric(12, 3)  # kg / l can be fractional; 3 decimals
@@ -160,13 +161,34 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     user_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # login name
-    name: Mapped[str] = mapped_column(String(100))
-    email: Mapped[str] = mapped_column(String(255))
+    # NFR-11: employee name and email are encrypted at rest (app/crypto.py); code sees plain text
+    name: Mapped[str] = mapped_column(EncryptedString)
+    email: Mapped[str] = mapped_column(EncryptedString)
     role: Mapped[str] = mapped_column(String(20))
     # argon2id hash; the random per-user salt is stored inside it (NFR-9). Never the password.
     password_hash: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = _now_col()
+    # SEC-3: wrong passwords in a row, and when the account was locked (None = not locked)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # NFR-10: the last emailed 2FA code (hash only), when it was sent and when it expires
+    otp_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    otp_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                            nullable=True)
+
+
+class PasswordReset(Base):
+    """SEC-5: one emailed reset link. Only the token's SHA-256 hash is kept; the link works once."""
+
+    __tablename__ = "password_resets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_pk: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class UserSession(Base):

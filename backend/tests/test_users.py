@@ -19,7 +19,8 @@ def test_tc_auth_04_admin_creates_user_who_can_log_in(client, admin):
     r = client.post("/api/users", json=NEW, headers=admin)
     assert r.status_code == 201
     assert r.json() == {"userId": "cash2", "name": "Cashier Two", "email": "cash2@example.com",
-                        "role": "Cashier", "active": True, "storeId": 1}
+                        "role": "Cashier", "active": True, "locked": False,
+                        "storeId": 1}
     r = login(client, "cash2", "Cash2Pass!")
     assert r.status_code == 200 and r.json()["role"] == "Cashier"
 

@@ -1,4 +1,4 @@
-"""User administration (SEC-4, TC-AUTH-04). Every endpoint here is Admin-only."""
+"""User administration (SEC-4, TC-AUTH-04; unlock for SEC-3). Every endpoint is Admin-only."""
 
 import logging
 from datetime import datetime, timezone
@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.auth.lockout import unlock
 from app.auth.passwords import hash_password
 from app.config import get_settings
 from app.db import get_db
@@ -22,7 +23,7 @@ audit = logging.getLogger("pms.audit")
 
 def _out(u: User) -> UserOut:
     return UserOut(userId=u.user_id, name=u.name, email=u.email, role=u.role, active=u.active,
-                   storeId=u.store_id)
+                   locked=u.locked_at is not None, storeId=u.store_id)
 
 
 def _find(db: Session, user_id: str) -> User:
@@ -42,7 +43,11 @@ def _end_sessions(db: Session, user: User) -> None:
 
 @router.get("", response_model=list[UserOut])
 def list_users(admin: CurrentUser = Depends(admin_only), db: Session = Depends(get_db)):
-    return [_out(u) for u in db.scalars(select(User).order_by(User.user_id))]
+    """Names and emails are stored encrypted (NFR-11); only an Admin gets them back readable,
+    and every such read is written to the audit log."""
+    users = [_out(u) for u in db.scalars(select(User).order_by(User.user_id))]
+    audit.info("EMPLOYEE_DATA_READ by=%s users=%s", admin.user_id, len(users))
+    return users
 
 
 @router.post("", status_code=201, response_model=UserOut)
@@ -95,4 +100,15 @@ def activate_user(user_id: str, admin: CurrentUser = Depends(admin_only),
     user.active = True
     db.commit()
     audit.info("USER_ACTIVATED by=%s user=%s", admin.user_id, user.user_id)
+    return _out(user)
+
+
+@router.patch("/{user_id}/unlock", response_model=UserOut)
+def unlock_user(user_id: str, admin: CurrentUser = Depends(admin_only),
+                db: Session = Depends(get_db)):
+    """SEC-3: clear a lockout after 5 wrong passwords so the user can log in again."""
+    user = _find(db, user_id)
+    unlock(user)
+    db.commit()
+    audit.info("USER_UNLOCKED by=%s user=%s", admin.user_id, user.user_id)
     return _out(user)

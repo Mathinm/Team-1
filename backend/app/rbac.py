@@ -9,12 +9,14 @@ require_roles(...) or get_current_user.
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import jwt
 from fastapi import Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.lockout import session_is_idle, touch
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
@@ -72,6 +74,15 @@ def get_current_session(
     if (session is None or session.ended_at is not None or user is None or not user.active
             or user.user_id != claims["sub"]):
         raise ApiError(401, "UNAUTHORIZED", SESSION_ENDED)
+
+    now = datetime.now(timezone.utc)
+    if session_is_idle(session, now):  # idle logout (SEC-3)
+        session.ended_at = now
+        db.commit()
+        log.info("session ended after inactivity: user=%s", user.user_id)
+        raise ApiError(401, "UNAUTHORIZED", SESSION_ENDED)
+    if touch(session, now):
+        db.commit()
     return session
 
 

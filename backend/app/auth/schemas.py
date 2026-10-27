@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class LoginIn(BaseModel):
     userId: str = Field(min_length=1, max_length=50)
     password: str = Field(min_length=1, max_length=128)
-    otpCode: str | None = None  # checked from S2-9 (2FA for Manager/Admin)
+    otpCode: str | None = Field(default=None, max_length=12)  # emailed 2FA code (NFR-10)
 
 
 class LoginOut(BaseModel):
