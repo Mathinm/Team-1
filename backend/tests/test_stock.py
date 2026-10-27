@@ -1,4 +1,3 @@
-
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -29,9 +28,7 @@ def test_removal_deducts_stock_and_records_audit(client, seeded):
     db.refresh(batch)
     assert Decimal(str(batch.quantity)) == original_quantity - 2
 
-    record = db.scalar(
-        select(Removal).where(Removal.removal_id == data["removalId"])
-    )
+    record = db.scalar(select(Removal).where(Removal.removal_id == data["removalId"]))
     assert record is not None
     assert record.reason == "damaged"
     assert record.recorded_by == "stock-tester"
@@ -113,11 +110,7 @@ def test_stock_count_records_variance_and_adjusts_stock(client, seeded):
     db.refresh(batch)
     assert Decimal(str(batch.quantity)) == counted_quantity
 
-    record = db.scalar(
-        select(StockCount).where(
-            StockCount.stock_count_id == data["stockCountId"]
-        )
-    )
+    record = db.scalar(select(StockCount).where(StockCount.stock_count_id == data["stockCountId"]))
     assert record is not None
     assert Decimal(str(record.variance)) == Decimal("3")
     assert record.reason == "physical stock count"
@@ -179,3 +172,34 @@ def test_cashier_cannot_record_stock_counts(client):
         headers=auth("cashier-tester", "Cashier"),
     )
     assert response.status_code == 403, response.text
+
+
+def test_stock_count_rejects_quantity_above_max(client, seeded):
+    response = client.post(
+        "/api/stock-counts",
+        json={
+            "batchId": 101,
+            "countedQuantity": 1000000000000,
+            "reason": "recount",
+        },
+        headers=auth("stock-tester", "Inventory Staff"),
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_removal_rejects_decimal_batch_id(client, seeded):
+    response = client.post(
+        "/api/removals",
+        json={"batchId": 101.9, "qty": 1, "reason": "damaged"},
+        headers=auth("stock-tester", "Inventory Staff"),
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_removal_rejects_blank_reason(client, seeded):
+    response = client.post(
+        "/api/removals",
+        json={"batchId": 101, "qty": 1, "reason": "   "},
+        headers=auth("stock-tester", "Inventory Staff"),
+    )
+    assert response.status_code == 400, response.text

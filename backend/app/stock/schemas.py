@@ -1,11 +1,10 @@
-
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 
 class StockCountIn(BaseModel):
-    batchId: int = Field(gt=0)
+    batchId: StrictInt = Field(gt=0)
     countedQuantity: Decimal
     reason: str = Field(min_length=1, max_length=255)
 
@@ -22,7 +21,7 @@ class StockCountOut(BaseModel):
 
 
 class RemovalIn(BaseModel):
-    batchId: int = Field(gt=0)
+    batchId: StrictInt = Field(gt=0)
     qty: Decimal
     reason: str = Field(min_length=1, max_length=40)
 

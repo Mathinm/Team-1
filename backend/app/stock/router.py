@@ -1,6 +1,7 @@
+"""Stock counts (FR-9) and non-expiry removals (FR-13) - Issue #10."""
 
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -11,21 +12,22 @@ from app.db import get_db
 from app.errors import ApiError
 from app.models import Batch, Product, Removal, StockCount
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
-from app.sales.fefo import UNITS_WHOLE_ONLY
+from app.sales.fefo import UNITS_WHOLE_ONLY, check_quantity
+from app.stock.schemas import RemovalIn, RemovalOut, StockCountIn, StockCountOut
 
 router = APIRouter(prefix="/api", tags=["stock"])
 inventory_users = require_roles(ADMIN, MANAGER, STAFF)
 
 
-def _positive_quantity(value) -> Decimal:
-    try:
-        qty = Decimal(str(value))
-    except (InvalidOperation, ValueError):
-        raise ApiError(400, "INVALID", "Quantity must be a positive number") from None
-
-    if not qty.is_finite() or qty <= 0 or qty.as_tuple().exponent < -3:
-        raise ApiError(400, "INVALID", "Quantity must be positive with at most 3 decimals")
-    return qty
+def _reason(value: str, max_len: int) -> str:
+    reason = value.strip()
+    if not reason or len(reason) > max_len:
+        raise ApiError(
+            400,
+            "VALIDATION",
+            f"reason must contain 1 to {max_len} characters",
+        )
+    return reason
 
 
 def _batch(db: Session, batch_id: int) -> Batch:
@@ -52,7 +54,11 @@ def _check_unit_quantity(db: Session, batch: Batch, qty: Decimal) -> None:
     if product is None:
         raise ApiError(404, "NOT_FOUND", "Unknown product")
     if product.unit in UNITS_WHOLE_ONLY and qty != qty.to_integral_value():
-        raise ApiError(400, "INVALID", f"{product.name} requires a whole-number quantity")
+        raise ApiError(
+            400,
+            "INVALID",
+            f"{product.name} requires a whole-number quantity",
+        )
 
 
 def _timestamp(value: datetime) -> str:
@@ -61,31 +67,16 @@ def _timestamp(value: datetime) -> str:
     return value.isoformat()
 
 
-@router.post("/removals", status_code=201, response_model=None)
+@router.post("/removals", status_code=201, response_model=RemovalOut)
 def create_removal(
-    body: dict,
+    body: RemovalIn,
     user: CurrentUser = Depends(inventory_users),
     db: Session = Depends(get_db),
 ):
     """FR-13: record damaged or temperature-breached stock and deduct it."""
-    required = {"batchId", "qty", "reason"}
-    if not isinstance(body, dict) or not required.issubset(body):
-        raise ApiError(400, "VALIDATION", "batchId, qty and reason are required")
-
-    try:
-        batch_id = int(body["batchId"])
-    except (TypeError, ValueError):
-        raise ApiError(400, "VALIDATION", "batchId must be a positive integer") from None
-
-    if batch_id <= 0:
-        raise ApiError(400, "VALIDATION", "batchId must be a positive integer")
-
-    reason = body["reason"]
-    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 40:
-        raise ApiError(400, "VALIDATION", "reason must contain 1 to 40 characters")
-
-    qty = _positive_quantity(body["qty"])
-    batch = _batch(db, batch_id)
+    reason = _reason(body.reason, 40)
+    qty = check_quantity(body.qty)
+    batch = _batch(db, body.batchId)
     _check_unit_quantity(db, batch, qty)
 
     if qty > batch.quantity:
@@ -100,7 +91,7 @@ def create_removal(
         store_id=get_settings().store_id,
         batch_id=batch.batch_id,
         quantity=qty,
-        reason=reason.strip(),
+        reason=reason,
         recorded_by=user.user_id,
         recorded_at=datetime.now(timezone.utc),
     )
@@ -108,58 +99,32 @@ def create_removal(
     db.commit()
     db.refresh(removal)
 
-    return {
-        "removalId": removal.removal_id,
-        "batchId": batch.batch_id,
-        "qty": float(qty),
-        "reason": removal.reason,
-        "recordedBy": removal.recorded_by,
-        "recordedAt": _timestamp(removal.recorded_at),
-        "remainingQuantity": float(batch.quantity),
-    }
+    return RemovalOut(
+        removalId=removal.removal_id,
+        batchId=batch.batch_id,
+        qty=float(qty),
+        reason=removal.reason,
+        recordedBy=removal.recorded_by,
+        recordedAt=_timestamp(removal.recorded_at),
+        remainingQuantity=float(batch.quantity),
+    )
 
 
-@router.post("/stock-counts", status_code=201, response_model=None)
+@router.post("/stock-counts", status_code=201, response_model=StockCountOut)
 def create_stock_count(
-    body: dict,
+    body: StockCountIn,
     user: CurrentUser = Depends(inventory_users),
     db: Session = Depends(get_db),
 ):
     """FR-9: compare counted stock against the system quantity and audit the adjustment."""
-    required = {"batchId", "countedQuantity", "reason"}
-    if not isinstance(body, dict) or not required.issubset(body):
-        raise ApiError(
-            400,
-            "VALIDATION",
-            "batchId, countedQuantity and reason are required",
-        )
+    reason = _reason(body.reason, 255)
 
-    try:
-        batch_id = int(body["batchId"])
-    except (TypeError, ValueError):
-        raise ApiError(400, "VALIDATION", "batchId must be a positive integer") from None
+    # Zero is valid when the shelf is empty.
+    counted = Decimal("0") if body.countedQuantity == 0 else check_quantity(body.countedQuantity)
 
-    if batch_id <= 0:
-        raise ApiError(400, "VALIDATION", "batchId must be a positive integer")
-
-    reason = body["reason"]
-    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 255:
-        raise ApiError(400, "VALIDATION", "reason must contain 1 to 255 characters")
-
-    try:
-        counted = Decimal(str(body["countedQuantity"]))
-    except (InvalidOperation, ValueError):
-        raise ApiError(400, "INVALID", "Counted quantity must be zero or greater") from None
-
-    if not counted.is_finite() or counted < 0 or counted.as_tuple().exponent < -3:
-       raise ApiError(
-    400,
-    "INVALID",
-    "Counted quantity must be zero or greater with at most 3 decimals",
-)
-
-    batch = _batch(db, batch_id)
-    _check_unit_quantity(db, batch, counted) if counted > 0 else None
+    batch = _batch(db, body.batchId)
+    if counted > 0:
+        _check_unit_quantity(db, batch, counted)
 
     system_qty = batch.quantity
     variance = counted - system_qty
@@ -172,7 +137,7 @@ def create_stock_count(
         system_quantity=system_qty,
         counted_quantity=counted,
         variance=variance,
-        reason=reason.strip(),
+        reason=reason,
         recorded_by=user.user_id,
         recorded_at=datetime.now(timezone.utc),
     )
@@ -180,13 +145,13 @@ def create_stock_count(
     db.commit()
     db.refresh(record)
 
-    return {
-        "stockCountId": record.stock_count_id,
-        "batchId": batch.batch_id,
-        "systemQuantity": float(system_qty),
-        "countedQuantity": float(counted),
-        "variance": float(variance),
-        "reason": record.reason,
-        "recordedBy": record.recorded_by,
-        "recordedAt": _timestamp(record.recorded_at),
-    }
+    return StockCountOut(
+        stockCountId=record.stock_count_id,
+        batchId=batch.batch_id,
+        systemQuantity=float(system_qty),
+        countedQuantity=float(counted),
+        variance=float(variance),
+        reason=record.reason,
+        recordedBy=record.recorded_by,
+        recordedAt=_timestamp(record.recorded_at),
+    )
