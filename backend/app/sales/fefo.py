@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.alerts.service import refresh_after_change
 from app.config import get_settings
 from app.errors import ApiError
 from app.models import Batch, Product, Sale, SaleBatch
@@ -161,6 +162,7 @@ def record_sale(
     db.flush()  # assigns sale_id; a duplicate (device_id, event_id) fails here
     db.add_all(SaleBatch(sale_id=sale.sale_id, batch_id=u.batch_id, quantity=u.qty) for u in used)
     db.flush()
+    refresh_after_change(db, product.product_id)  # FR-11: below threshold -> LOW_STOCK alert
 
     remaining = total - qty  # on hand across all batches, expired included (matches product.stock)
     return SaleResult(sale.sale_id, product.name, product.unit, amount, used, remaining)

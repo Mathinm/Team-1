@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.alerts.service import refresh_after_change
 from app.batches.schemas import BatchCreated, BatchIn, FefoBatchOut, RestockIn
 from app.config import get_settings
 from app.db import get_db
@@ -106,6 +107,7 @@ def receive_batch(
         expiry_date=body.expiryDate,
     )
     db.add(batch)
+    refresh_after_change(db, product.product_id)  # close LOW_STOCK once stock is back up
     db.commit()
     return BatchCreated(batchId=batch.batch_id, newStock=_stock(db, product.product_id))
 
@@ -142,6 +144,7 @@ def restock(
         expiry_date=today + timedelta(days=product.shelf_life_days),
     )
     db.add(batch)
+    refresh_after_change(db, product.product_id)  # close LOW_STOCK once stock is back up
     db.commit()
     return BatchCreated(batchId=batch.batch_id, newStock=_stock(db, product.product_id))
 

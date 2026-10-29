@@ -11,12 +11,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.alerts.service import guarded
 from app.config import get_settings
 from app.db import get_db
 from app.device.auth import device_of_kind
 from app.device.schemas import DeviceSaleIn, ReadingIn, ReadingOut, parse_reading_value
 from app.errors import ApiError
 from app.models import Device, Sale, SensorReading
+from app.refrigeration.service import apply_reading
 from app.sales.fefo import record_sale, to_utc
 from app.sales.schemas import SaleOut, sale_out
 
@@ -62,12 +64,13 @@ def device_reading(
     device: Device = Depends(device_of_kind("sensor")),
     db: Session = Depends(get_db),
 ):
-    """Temperature / door / power reading. Alert evaluation arrives with the Alerts module."""
+    """Temperature / door / power reading (FR-17). Stored, then checked for unit-failure,
+    door-open and temperature alerts (FR-15, FR-16); `alertRaised` says if it raised any."""
     num, text = parse_reading_value(body.type, body.value)
     if db.scalar(select(SensorReading.reading_id).where(
             SensorReading.device_id == device.device_id, SensorReading.event_id == body.eventId)):
         raise _duplicate(body.eventId)
-    db.add(SensorReading(
+    reading_row = SensorReading(
         store_id=get_settings().store_id,
         device_id=device.device_id,
         event_id=body.eventId,
@@ -77,10 +80,13 @@ def device_reading(
         value_text=text,
         recorded_at=to_utc(body.recordedAt),
         received_at=datetime.now(timezone.utc),
-    ))
+    )
+    db.add(reading_row)
     try:
+        db.flush()  # a duplicate (device, eventId) fails here, before any alert is evaluated
+        raised = guarded(db, apply_reading, reading_row) or []
         db.commit()
     except IntegrityError:
         db.rollback()
         raise _duplicate(body.eventId) from None
-    return ReadingOut(status="stored", alertRaised=False)
+    return ReadingOut(status="stored", alertRaised=bool(raised))

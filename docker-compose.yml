@@ -35,6 +35,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-PMS <no-reply@example.com>}
       STORE_TIMEZONE: ${STORE_TIMEZONE:-Asia/Kolkata}
+      LOW_STOCK_CHECK_TIME: ${LOW_STOCK_CHECK_TIME:-06:00}
+      DOOR_OPEN_LIMIT_MINUTES: ${DOOR_OPEN_LIMIT_MINUTES:-5}
     depends_on:
       db:
         condition: service_healthy

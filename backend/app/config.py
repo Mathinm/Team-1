@@ -55,6 +55,19 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "PMS <no-reply@example.com>"
     smtp_tls: bool = True  # STARTTLS
+    # ---- Alerts, refrigeration and scheduler (S2-4, S2-5, #13, #14)
+    # Background loop that checks open doors, sends alert notifications and runs the daily
+    # low-stock check. Alerts must reach staff within 60 s (NFR-2), so keep this at 30 s or less.
+    scheduler_enabled: bool = True
+    scheduler_interval_seconds: int = 10
+    # Store time (HH:MM) of the daily projected low-stock check (FR-10).
+    low_stock_check_time: str = "06:00"
+    # A refrigeration door open longer than this raises an alarm (FR-16). Per-unit override
+    # with PUT /api/refrigeration/units/{unitId}.
+    door_open_limit_minutes: int = 5
+    # Safe temperature range of a fridge in deg C; a reading outside it raises an alert.
+    unit_temp_min_c: float = 0.0
+    unit_temp_max_c: float = 8.0
 
 
 @lru_cache

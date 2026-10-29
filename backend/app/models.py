@@ -231,3 +231,100 @@ class Removal(Base):
     recorded_by: Mapped[str] = mapped_column(String(80))
     recorded_at: Mapped[datetime] = _now_col()
 
+
+
+# ----------------------------------------------------------------
+# Alerts and refrigeration monitoring (Sprint 2, issues #13, #14, #15)
+
+class Alert(Base):
+    """One alert, created only by the Alerts module (ADR-7) and kept for the audit trail.
+
+    type: LOW_STOCK | PROJECTED_LOW_STOCK | UNIT_FAILURE | DOOR_OPEN | TEMPERATURE
+    (other modules, e.g. expiry notifications, add their own type strings).
+    status: active (needs attention) -> acknowledged (a person has seen it) -> resolved
+    (the condition ended). Alerts are never deleted (NFR-7).
+    """
+
+    __tablename__ = "alerts"
+    __table_args__ = (
+        # While an alert is unresolved, open_key holds its dedupe key; the unique constraint
+        # then stops two open alerts for the same thing (NULLs never clash, so resolved
+        # alerts do not block a new one later).
+        UniqueConstraint("store_id", "open_key", name="uq_alerts_open_key"),
+        Index("ix_alerts_store_status", "store_id", "status"),
+    )
+    alert_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    type: Mapped[str] = mapped_column(String(30))
+    severity: Mapped[str] = mapped_column(String(10), default="warning")  # info|warning|critical
+    message: Mapped[str] = mapped_column(String(255))
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.product_id"), nullable=True
+    )
+    unit_id: Mapped[str | None] = mapped_column(String(64), nullable=True)  # e.g. "Fridge-1"
+    open_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(String(14), default="active")
+    triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when it happened
+    created_at: Mapped[datetime] = _now_col()  # when PMS stored it (NFR-2 is measured from here)
+    acknowledged_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Delivery through the Notification interface (SAD 3.4). The alert is visible in the app
+    # whatever happens here.
+    delivery_status: Mapped[str] = mapped_column(String(10), default="pending")
+    delivery_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RefrigerationUnit(Base):
+    """Latest known state of one fridge, built from its sensor readings (FR-15, FR-16).
+
+    Created by the first reading that names the unit. The state follows the readings'
+    own timestamps (recorded_at), so readings that arrive late after an outage are applied
+    in the right order and an older reading never overwrites a newer one.
+    """
+
+    __tablename__ = "refrigeration_units"
+    __table_args__ = (UniqueConstraint("store_id", "unit_id", name="uq_units_store_unit"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    unit_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(10), default="OK")  # OK | FAILED
+    power: Mapped[str | None] = mapped_column(String(3), nullable=True)  # ON | OFF
+    power_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    door: Mapped[str | None] = mapped_column(String(6), nullable=True)  # OPEN | CLOSED
+    door_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    door_open_since: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
+    temperature_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_event_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # newest recorded_at of any reading
+    last_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # when PMS last heard from the sensor
+    # Per-unit settings. NULL = use the store default from the environment.
+    door_open_limit_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    temp_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    temp_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class JobRun(Base):
+    """Remembers the last day a daily scheduler job ran, so a restart never skips or repeats it."""
+
+    __tablename__ = "job_runs"
+    __table_args__ = (UniqueConstraint("store_id", "job", name="uq_job_runs_store_job"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    job: Mapped[str] = mapped_column(String(40))
+    last_run_on: Mapped[date] = mapped_column(Date)

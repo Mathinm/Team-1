@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.alerts.service import refresh_after_change
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
@@ -96,6 +97,7 @@ def create_removal(
         recorded_at=datetime.now(timezone.utc),
     )
     db.add(removal)
+    refresh_after_change(db, batch.product_id)  # FR-11
     db.commit()
     db.refresh(removal)
 
@@ -142,6 +144,7 @@ def create_stock_count(
         recorded_at=datetime.now(timezone.utc),
     )
     db.add(record)
+    refresh_after_change(db, batch.product_id)  # FR-11: a count can lower or raise stock
     db.commit()
     db.refresh(record)
 

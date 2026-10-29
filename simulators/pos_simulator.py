@@ -81,11 +81,11 @@ def main() -> None:
             outcome = client.send("/api/device/sales", event)
             sent += 1
             print(f"[{sent}] {event['sku']} x {event['quantity']}: {outcome}"
-                  f" (buffered: {len(client.pending())})")
+                  f" (waiting to sync: {client.pending_count()})")
             time.sleep(a.interval)
     except KeyboardInterrupt:
         pass
-    print(f"Stopped. {len(client.pending())} event(s) still waiting in {a.buffer}.")
+    print(f"Stopped. {client.pending_count()} event(s) still waiting in {a.buffer}.")
 
 
 if __name__ == "__main__":
