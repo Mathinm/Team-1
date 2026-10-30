@@ -23,14 +23,13 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.crypto import EncryptedString
 from app.db import Base
 
-QTY = Numeric(12, 3)
+QTY = Numeric(12, 3)  # kg / l can be fractional; 3 decimals
 MONEY = Numeric(12, 2)
 
 
@@ -38,10 +37,9 @@ def _now_col():
     return mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-# Products and batches
+# ---------------------------------------------------------- products (#5) and batches (#6)
 class Supplier(Base):
     __tablename__ = "suppliers"
-
     supplier_id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     name: Mapped[str] = mapped_column(String(120))
@@ -50,13 +48,12 @@ class Supplier(Base):
 class Product(Base):
     __tablename__ = "products"
     __table_args__ = (UniqueConstraint("store_id", "sku"),)
-
     product_id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     sku: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(120))
     category: Mapped[str] = mapped_column(String(40))
-    unit: Mapped[str] = mapped_column(String(10))
+    unit: Mapped[str] = mapped_column(String(10))  # kg | piece | l
     shelf_life_days: Mapped[int] = mapped_column(Integer)
     storage_type: Mapped[str] = mapped_column(String(20))
     temp_min: Mapped[float] = mapped_column(Float)
@@ -73,24 +70,293 @@ class Batch(Base):
         CheckConstraint("quantity >= 0", name="ck_batches_quantity_nonneg"),
         Index("ix_batches_product_expiry", "product_id", "expiry_date"),
     )
-
     batch_id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"))
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.supplier_id"))
-    quantity: Mapped[Decimal] = mapped_column(QTY)
+    quantity: Mapped[Decimal] = mapped_column(QTY)  # on hand now
     initial_quantity: Mapped[Decimal] = mapped_column(QTY)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    expiry_date: Mapped[date] = mapped_column(Date)
+    expiry_date: Mapped[date] = mapped_column(Date)  # last day the batch may be sold
 
 
-# Sales
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "store_id",
+            "batch_id",
+            "notification_type",
+            name="uq_notifications_store_batch_type",
+        ),
+        Index("ix_notifications_store_created", "store_id", "created_at"),
+    )
+
+    notification_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("batches.batch_id"), index=True, nullable=True
+    )
+    removal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("removals.removal_id"), nullable=True
+    )
+    notification_type: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(120))
+    message: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = _now_col()
+
+
+# ---------------------------------------------------------------- sales (S1-5)
 class Sale(Base):
     __tablename__ = "sales"
     __table_args__ = (
+        # A device resending an event (offline sync) must not create a second sale.
         UniqueConstraint("device_id", "event_id", name="uq_sales_device_event"),
     )
-
     sale_id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"))
+    sku: Mapped[str] = mapped_column(String(20))
+    quantity: Mapped[Decimal] = mapped_column(QTY)
+    unit: Mapped[str] = mapped_column(String(10))
+    unit_price: Mapped[Decimal] = mapped_column(MONEY)  # price at the time of sale
+    amount: Mapped[Decimal] = mapped_column(MONEY)
+    sold_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    recorded_at: Mapped[datetime] = _now_col()
+    source: Mapped[str] = mapped_column(String(10))  # manual | csv | device
+    recorded_by: Mapped[str] = mapped_column(String(80))  # user id or "device:<name>" (audit)
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.device_id"), nullable=True)
+    event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class SaleBatch(Base):
+    """Which batches a sale was taken from (FEFO trail)."""
+
+    __tablename__ = "sale_batches"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sale_id: Mapped[int] = mapped_column(ForeignKey("sales.sale_id"), index=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"))
+    quantity: Mapped[Decimal] = mapped_column(QTY)
+
+
+# ---------------------------------------------------------------- device API (S1-2)
+class Device(Base):
+    """A POS or sensor source with its own key. Only the SHA-256 of the key is stored."""
+
+    __tablename__ = "devices"
+    device_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    kind: Mapped[str] = mapped_column(String(10))  # pos | sensor
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = _now_col()
+
+
+class SensorReading(Base):
+    __tablename__ = "sensor_readings"
+    __table_args__ = (
+        UniqueConstraint("device_id", "event_id", name="uq_readings_device_event"),
+        Index("ix_readings_unit_time", "store_id", "unit_id", "recorded_at"),
+    )
+    reading_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.device_id"))
+    event_id: Mapped[str] = mapped_column(String(64))
+    unit_id: Mapped[str] = mapped_column(String(64))  # e.g. "Fridge-1"
+    type: Mapped[str] = mapped_column(String(12))  # temperature | door | power
+    value_num: Mapped[float | None] = mapped_column(Float, nullable=True)  # temperature, deg C
+    value_text: Mapped[str | None] = mapped_column(String(10), nullable=True)  # OPEN/CLOSED, ON/OFF
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # original time
+    received_at: Mapped[datetime] = _now_col()
+
+
+# ---------------------------------------------------------------- users and login (S1-1, #3)
+ROLES = ("Admin", "Manager", "Inventory Staff", "Cashier")
+
+
+class User(Base):
+    """A person who logs in. Never deleted, only deactivated, so past records keep their author."""
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('Admin', 'Manager', 'Inventory Staff', 'Cashier')",
+            name="ck_users_role",
+        ),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    user_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # login name
+    # NFR-11: employee name and email are encrypted at rest (app/crypto.py); code sees plain text
+    name: Mapped[str] = mapped_column(EncryptedString)
+    email: Mapped[str] = mapped_column(EncryptedString)
+    role: Mapped[str] = mapped_column(String(20))
+    # argon2id hash; the random per-user salt is stored inside it (NFR-9). Never the password.
+    password_hash: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = _now_col()
+    # SEC-3: wrong passwords in a row, and when the account was locked (None = not locked)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # NFR-10: the last emailed 2FA code (hash only), when it was sent and when it expires
+    otp_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    otp_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
+class PasswordReset(Base):
+    """SEC-5: one emailed reset link. Only the token's SHA-256 hash is kept; the link works once."""
+
+    __tablename__ = "password_resets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_pk: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserSession(Base):
+    """One row per login. Logout or deactivation ends it, so its token stops working at once."""
+
+    __tablename__ = "user_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sid: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # the token's "sid"
+    user_pk: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = _now_col()
+    last_seen_at: Mapped[datetime] = _now_col()  # S2-9 idle logout compares against this
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# ----------------------------------------------------------------
+# Stock count and non-expiry removals (Sprint 2, Issue #10)
+
+class StockCount(Base):
+    __tablename__ = "stock_counts"
+
+    stock_count_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
+    system_quantity: Mapped[Decimal] = mapped_column(QTY)
+    counted_quantity: Mapped[Decimal] = mapped_column(QTY)
+    variance: Mapped[Decimal] = mapped_column(QTY)
+    reason: Mapped[str] = mapped_column(String(255))
+    recorded_by: Mapped[str] = mapped_column(String(80))
+    recorded_at: Mapped[datetime] = _now_col()
+
+
+class Removal(Base):
+    __tablename__ = "removals"
+
+    removal_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
+    quantity: Mapped[Decimal] = mapped_column(QTY)
+    reason: Mapped[str] = mapped_column(String(40))
+    recorded_by: Mapped[str] = mapped_column(String(80))
+    recorded_at: Mapped[datetime] = _now_col()
+
+
+# ----------------------------------------------------------------
+# Alerts and refrigeration monitoring (Sprint 2, issues #13, #14, #15)
+
+class Alert(Base):
+    """One alert, created only by the Alerts module (ADR-7) and kept for the audit trail.
+
+    type: LOW_STOCK | PROJECTED_LOW_STOCK | UNIT_FAILURE | DOOR_OPEN | TEMPERATURE
+    (other modules, e.g. expiry notifications, add their own type strings).
+    status: active (needs attention) -> acknowledged (a person has seen it) -> resolved
+    (the condition ended). Alerts are never deleted (NFR-7).
+    """
+
+    __tablename__ = "alerts"
+    __table_args__ = (
+        # While an alert is unresolved, open_key holds its dedupe key; the unique constraint
+        # then stops two open alerts for the same thing (NULLs never clash, so resolved
+        # alerts do not block a new one later).
+        UniqueConstraint("store_id", "open_key", name="uq_alerts_open_key"),
+        Index("ix_alerts_store_status", "store_id", "status"),
+    )
+    alert_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    type: Mapped[str] = mapped_column(String(30))
+    severity: Mapped[str] = mapped_column(String(10), default="warning")  # info|warning|critical
+    message: Mapped[str] = mapped_column(String(255))
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.product_id"), nullable=True
+    )
+    unit_id: Mapped[str | None] = mapped_column(String(64), nullable=True)  # e.g. "Fridge-1"
+    open_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(String(14), default="active")
+    triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when it happened
+    created_at: Mapped[datetime] = _now_col()  # when PMS stored it (NFR-2 is measured from here)
+    acknowledged_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Delivery through the Notification interface (SAD 3.4). The alert is visible in the app
+    # whatever happens here.
+    delivery_status: Mapped[str] = mapped_column(String(10), default="pending")
+    delivery_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RefrigerationUnit(Base):
+    """Latest known state of one fridge, built from its sensor readings (FR-15, FR-16).
+
+    Created by the first reading that names the unit. The state follows the readings'
+    own timestamps (recorded_at), so readings that arrive late after an outage are applied
+    in the right order and an older reading never overwrites a newer one.
+    """
+
+    __tablename__ = "refrigeration_units"
+    __table_args__ = (UniqueConstraint("store_id", "unit_id", name="uq_units_store_unit"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    unit_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(10), default="OK")  # OK | FAILED
+    power: Mapped[str | None] = mapped_column(String(3), nullable=True)  # ON | OFF
+    power_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    door: Mapped[str | None] = mapped_column(String(6), nullable=True)  # OPEN | CLOSED
+    door_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    door_open_since: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
+    temperature_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_event_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # newest recorded_at of any reading
+    last_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # when PMS last heard from the sensor
+    # Per-unit settings. NULL = use the store default from the environment.
+    door_open_limit_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    temp_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    temp_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class JobRun(Base):
+    """Remembers the last day a daily scheduler job ran, so a restart never skips or repeats it."""
+
+    __tablename__ = "job_runs"
+    __table_args__ = (UniqueConstraint("store_id", "job", name="uq_job_runs_store_job"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    job: Mapped[str] = mapped_column(String(40))
+    last_run_on: Mapped[date] = mapped_column(Date)
+
+
+"""End of model definitions."""
+

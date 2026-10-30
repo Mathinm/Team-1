@@ -1,4 +1,3 @@
-```python
 """Stock counts (FR-9) and non-expiry removals (FR-13) - Issue #10."""
 
 from datetime import datetime, timezone
@@ -100,7 +99,6 @@ def create_removal(
     db.add(removal)
     db.flush()
 
-    # Record the notification in the same transaction as the stock removal.
     db.add(
         Notification(
             store_id=get_settings().store_id,
@@ -115,7 +113,6 @@ def create_removal(
         )
     )
 
-    # FR-11: refresh alerts after stock changes.
     refresh_after_change(db, batch.product_id)
 
     db.commit()
@@ -142,11 +139,8 @@ def create_stock_count(
     """FR-9: compare counted stock against the system quantity and audit the adjustment."""
     reason = _reason(body.reason, 255)
 
-    # Zero is valid when the shelf is empty.
     counted = (
-        Decimal("0")
-        if body.countedQuantity == 0
-        else check_quantity(body.countedQuantity)
+        Decimal("0") if body.countedQuantity == 0 else check_quantity(body.countedQuantity)
     )
 
     batch = _batch(db, body.batchId)
@@ -156,7 +150,6 @@ def create_stock_count(
     system_qty = batch.quantity
     variance = counted - system_qty
 
-    # The physical count becomes the new system quantity.
     batch.quantity = counted
     record = StockCount(
         store_id=get_settings().store_id,
@@ -170,7 +163,7 @@ def create_stock_count(
     )
 
     db.add(record)
-    refresh_after_change(db, batch.product_id)  # FR-11: a count can lower or raise stock
+    refresh_after_change(db, batch.product_id)
     db.commit()
     db.refresh(record)
     db.refresh(batch)
@@ -185,4 +178,4 @@ def create_stock_count(
         recordedBy=record.recorded_by,
         recordedAt=_timestamp(record.recorded_at),
     )
-```
+
