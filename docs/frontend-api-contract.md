@@ -19,13 +19,16 @@ user out and sends them to the login page.
 
 | Method & path | Who (SEC-2) | Request | Response | Owner issue |
 |---|---|---|---|---|
-| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)** | #3 |
+| `POST /auth/login` | public | `{userId, password, otpCode?}` | 200 `{token, role, expiresIn, name, userId}` **(added: name, userId)**; 401 wrong credentials; 423 `ACCOUNT_LOCKED` after 5 wrong passwords in a row; **Manager/Admin: right password without `otpCode` emails a 6-digit code and answers 401 `OTP_REQUIRED` with `details.sentTo` (masked email); wrong, used or expired code 401 `INVALID_OTP`** | #3, #18 |
 | `POST /auth/logout` | any | – | 204 | #3 |
 | `GET /auth/me` **(added)** | any | – | 200 `{userId, name, role, menu[]}` (`menu` = screens the role may open) | #3 |
-| `GET /users` | Admin | – | 200 `[{userId, name, email, role, active, storeId}]` | #3 |
+| `POST /auth/password-reset` **(added)** | public | `{userId}` | 202 `{message}` (same answer for unknown users); emails `{FRONTEND_URL}/reset-password?token=...` | #18 |
+| `POST /auth/password-reset/confirm` **(added)** | public | `{token, newPassword}` | 200 `{message}`; 400 `RESET_LINK_INVALID` (unknown, used or expired link) | #18 |
+| `GET /users` | Admin | – | 200 `[{userId, name, email, role, active, storeId}]` (name/email stored encrypted, returned readable; each read audit-logged) | #3, #18 |
 | `POST /users` | Admin | `{userId, name, email, role, password}` | 201 user; 409 `USER_EXISTS` | #3 |
 | `PUT /users/{userId}` | Admin | `{name?, email?, role?}` | 200 user | #3 |
 | `PATCH /users/{userId}/deactivate` / `activate` | Admin | – | 200 user | #3 |
+| `PATCH /users/{userId}/unlock` **(added)** | Admin | – | 200 user; users now include `locked` | #18 |
 | `GET /products` **(added)** | any | – | 200 `[{productId, sku, name, category, unit, shelfLifeDays, storageType, tempMin, tempMax, costPrice, sellingPrice, lowStockThreshold, active, stock}]` (`stock` = total on hand) | #5 |
 | `POST /products` | Admin, Manager | product fields + **`sku` (added)** | 201 product | #5 |
 | `PUT /products/{id}` | Admin, Manager | product fields | 200 product | #5 |
@@ -45,6 +48,42 @@ user out and sends them to the login page.
 |---|---|---|---|---|
 | `POST /removals` **(added)** | Admin, Manager, Inventory Staff | `{batchId, qty, reason}`; reason 1–40 characters, e.g. Damaged, Temperature breach, Other | 201 `{removalId, batchId, qty, reason, recordedBy, recordedAt, remainingQuantity}`; 400 invalid input; 404 unknown batch; 422 `INSUFFICIENT_STOCK` if quantity exceeds available stock | #10 |
 | `POST /stock-counts` **(added)** | Admin, Manager, Inventory Staff | `{batchId, countedQuantity, reason}`; `countedQuantity` ≥ 0; reason 1–255 characters | 201 `{stockCountId, batchId, systemQuantity, countedQuantity, variance, reason, recordedBy, recordedAt}`; variance = counted − system; batch quantity updated to counted quantity; 400 invalid input; 404 unknown batch | #10 |
+
+## Sprint 2 — Alerts and refrigeration (issues #13, #14, #15)
+
+Alerts are created only by the backend (ADR-7). Roles: view = Admin, Manager, Inventory Staff;
+acknowledge / settings / run-check = Admin, Manager. Cashier gets 403.
+
+| Method & path | Request | Response |
+|---|---|---|
+| `GET /alerts?status=&type=&limit=` | `status` = `active` (needs attention), `acknowledged`, `resolved`, `open` (= active + acknowledged, the problem still exists), `all` (default); `limit` 1-500 (default 200) | 200 `[Alert]`, newest first; 400 bad `status` |
+| `POST /alerts/{id}/acknowledge` | – | 200 `Alert` (`status: acknowledged`, `acknowledgedBy`, `acknowledgedAt`). Repeating is harmless; a resolved alert stays `resolved`. 404 unknown id |
+| `POST /alerts/run-low-stock-check` | – | 200 `{raised, resolved}`; runs the daily projected low-stock check now |
+| `GET /refrigeration/units` | – | 200 `[Unit]` of every fridge that has reported, by `unitId` |
+| `PUT /refrigeration/units/{unitId}` | `{doorOpenLimitMinutes?: 1-240, tempMin?, tempMax?}` | 200 `Unit`; 400 invalid (min must be below max); 404 unknown unit |
+
+`Alert` = `{alertId, type, severity, message, productId|null, unitId|null, status, triggeredAt,
+createdAt, acknowledgedBy|null, acknowledgedAt|null, resolvedAt|null, resolution|null,
+deliveryStatus, deliveredAt|null}`
+
+- `type`: `LOW_STOCK`, `PROJECTED_LOW_STOCK`, `UNIT_FAILURE`, `DOOR_OPEN`, `TEMPERATURE` (other modules add their own, e.g. expiry).
+- `severity`: `info` / `warning` / `critical`. `deliveryStatus`: `pending` / `sent` / `failed` / `skipped` (informational; the alert is always visible).
+- `message` is a sentence for staff, e.g. "Tomato is low: 8 kg left (threshold 10)", "Fridge-2 failed: power lost".
+- An alert closes by itself (`status: resolved`, `resolution` says why) when the problem ends: stock back at or above the threshold, power restored, door closed, temperature back in range. Resolved alerts stay in the history.
+
+`Unit` = `{unitId, status: "OK"|"FAILED", power: "ON"|"OFF"|null, door: "OPEN"|"CLOSED"|null,
+doorOpenSince|null, temperature|null, temperatureAt|null, lastReadingAt|null, lastReceivedAt|null,
+doorOpenLimitMinutes, tempMin, tempMax, openAlerts}`
+
+Rules:
+- **Low stock (FR-11):** stock below `lowStockThreshold` (exactly equal is fine) raises `LOW_STOCK` at once after a sale, removal, stock count, batch/restock or threshold edit. "Stock" = everything on hand, the same `stock` number as `GET /products`.
+- **Projected (FR-10):** once a day (`LOW_STOCK_CHECK_TIME`, default 06:00 store time), an item whose `stock - average daily sales of the last 7 days` is below the threshold raises `PROJECTED_LOW_STOCK` ("Tomato projected below 10 tomorrow").
+- **Fridge failure (FR-15):** a `power OFF` reading makes the unit `FAILED` and raises a critical `UNIT_FAILURE`; `power ON` makes it `OK` and closes the alert.
+- **Door (FR-16):** open longer than `doorOpenLimitMinutes` (default 5) raises `DOOR_OPEN`; closing closes it.
+- **Temperature:** a reading outside `tempMin`..`tempMax` (default 0-8 °C) raises a critical `TEMPERATURE` alert.
+- **Delivery:** new alerts are sent to the active Managers' emails within about 10 s and retried up to 5 times; delivery is simulated (written to the backend log).
+- **Offline sync:** readings are judged by their own `recordedAt`, so data that arrives late gives the same alerts as live data.
+- `POST /device/readings` now answers `alertRaised: true` when that reading raised an alert (it was always `false` before).
 
 ## Notes
 
@@ -100,7 +139,7 @@ header `X-Device-Key`. Get a key with `python -m app.device.provision <name> <po
 - `type` / `value`: `temperature` = number in °C (-60..100); `door` = `OPEN` or `CLOSED`; `power` = `ON` or `OFF`.
 - `eventId` (string, max 64) must be unique per device. Re-sending a stored event returns **409 `DUPLICATE_EVENT`** and changes nothing, so senders may retry safely after an outage.
 - Errors: 401 `INVALID_DEVICE_KEY`; 403 wrong kind of device for the endpoint; 400 malformed data (reading is not stored); sales also return 422 `INSUFFICIENT_STOCK` / `BATCH_EXPIRED`.
-- `alertRaised` is always `false` until the Alerts module (later sprint) evaluates readings.
+- `alertRaised` is `true` when the reading raised an alert (see Sprint 2 — Alerts and refrigeration).
 
 ## Demo mode
 

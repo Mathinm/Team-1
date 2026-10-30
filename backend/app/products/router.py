@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.alerts.service import refresh_after_change
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
@@ -123,6 +124,7 @@ def update_product(
     product = _find_product(db, product_id)
     for field, value in _values(body).items():
         setattr(product, field, value)
+    refresh_after_change(db, product.product_id)  # a new threshold applies at once
     try:
         db.commit()
     except IntegrityError:
@@ -140,6 +142,7 @@ def deactivate_product(
 ):
     product = _find_product(db, product_id)
     product.active = False
+    refresh_after_change(db, product.product_id)
     db.commit()
     db.refresh(product)
     return _product_out(db, product)
@@ -153,6 +156,7 @@ def activate_product(
 ):
     product = _find_product(db, product_id)
     product.active = True
+    refresh_after_change(db, product.product_id)
     db.commit()
     db.refresh(product)
     return _product_out(db, product)

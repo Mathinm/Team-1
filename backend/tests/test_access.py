@@ -11,7 +11,12 @@ from tests.conftest import auth
 
 # Endpoints anyone may call. Device endpoints use a device key instead of a login, and
 # still answer 401 without one. Add a path here ONLY if it must work without logging in.
-PUBLIC = {("GET", "/api/health"), ("POST", "/api/auth/login")}
+PUBLIC = {
+    ("GET", "/api/health"),
+    ("POST", "/api/auth/login"),
+    ("POST", "/api/auth/password-reset"),  # SEC-5: a user who forgot the password can't log in
+    ("POST", "/api/auth/password-reset/confirm"),  # protected by the emailed one-time token
+}
 
 API_ROUTES = sorted(
     (method, route.path)

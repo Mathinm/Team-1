@@ -1,4 +1,4 @@
-
+```python
 """Stock counts (FR-9) and non-expiry removals (FR-13) - Issue #10."""
 
 from datetime import datetime, timezone
@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.alerts.service import refresh_after_change
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
@@ -104,6 +105,7 @@ def create_removal(
         Notification(
             store_id=get_settings().store_id,
             batch_id=batch.batch_id,
+            removal_id=removal.removal_id,
             notification_type="removal",
             title="Stock removed",
             message=(
@@ -112,6 +114,9 @@ def create_removal(
             ),
         )
     )
+
+    # FR-11: refresh alerts after stock changes.
+    refresh_after_change(db, batch.product_id)
 
     db.commit()
     db.refresh(removal)
@@ -165,6 +170,7 @@ def create_stock_count(
     )
 
     db.add(record)
+    refresh_after_change(db, batch.product_id)  # FR-11: a count can lower or raise stock
     db.commit()
     db.refresh(record)
     db.refresh(batch)
@@ -179,3 +185,4 @@ def create_stock_count(
         recordedBy=record.recorded_by,
         recordedAt=_timestamp(record.recorded_at),
     )
+```

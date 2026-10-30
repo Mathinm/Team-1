@@ -25,4 +25,5 @@ class UserOut(BaseModel):
     email: str
     role: str
     active: bool
+    locked: bool  # SEC-3: too many wrong passwords; an Admin can unlock
     storeId: int

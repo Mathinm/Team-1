@@ -2,6 +2,7 @@ import os
 
 os.environ.setdefault("JWT_SECRET", "test-secret-that-is-at-least-32-bytes-long")
 os.environ.setdefault("STORE_TIMEZONE", "Asia/Kolkata")
+os.environ.setdefault("SCHEDULER_ENABLED", "false")  # tests call the scheduler jobs directly
 
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from decimal import Decimal  # noqa: E402

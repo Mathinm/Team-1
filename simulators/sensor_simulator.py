@@ -7,6 +7,8 @@
     python sensor_simulator.py --once --unit Fridge-2 --type door --value OPEN
     python sensor_simulator.py --once --unit Fridge-2 --type power --value OFF
     python sensor_simulator.py --once --unit Fridge-1 --type temperature --value 11.5
+    python sensor_simulator.py --once --unit Fridge-1 --type door --value OPEN --ago 600
+        # --ago S: the reading is stamped S seconds in the past (door "opened 10 min ago")
 
 Readings made while the backend is down are kept in sensor-buffer.jsonl and sent later with
 their original timestamps.
@@ -17,18 +19,19 @@ import os
 import random
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from device_client import DEFAULT_URL, DeviceClient
 
 
-def make_event(unit_id: str, kind: str, value) -> dict:
+def make_event(unit_id: str, kind: str, value, ago: float = 0) -> dict:
+    recorded = datetime.now(timezone.utc) - timedelta(seconds=ago)
     return {
         "eventId": str(uuid.uuid4()),
         "unitId": unit_id,
         "type": kind,
         "value": value,
-        "recordedAt": datetime.now(timezone.utc).isoformat(),
+        "recordedAt": recorded.isoformat(),
     }
 
 
@@ -43,6 +46,7 @@ def main() -> None:
     p.add_argument("--unit")
     p.add_argument("--type", choices=["temperature", "door", "power"])
     p.add_argument("--value")
+    p.add_argument("--ago", type=float, default=0, help="--once only: stamp the reading S seconds ago")
     p.add_argument("--buffer", default="sensor-buffer.jsonl")
     a = p.parse_args()
     if not a.key:
@@ -59,7 +63,7 @@ def main() -> None:
                 value = float(a.value)
             except ValueError:
                 pass
-        outcome = client.send(path, make_event(a.unit, a.type, value))
+        outcome = client.send(path, make_event(a.unit, a.type, value, a.ago))
         print(f"{a.unit} {a.type}={a.value}: {outcome}")
         return
 
@@ -78,11 +82,13 @@ def main() -> None:
                     events.append(make_event(u, "door", "OPEN" if door_open[u] else "CLOSED"))
                 events.append(make_event(u, "power", "ON"))
                 for e in events:
-                    print(f"[{rounds}] {u} {e['type']}={e['value']}: {client.send(path, e)}")
+                    outcome = client.send(path, e)
+                    waiting = f" (waiting to sync: {client.pending_count()})" if outcome == "buffered" else ""
+                    print(f"[{rounds}] {u} {e['type']}={e['value']}: {outcome}{waiting}")
             time.sleep(a.interval)
     except KeyboardInterrupt:
         pass
-    print(f"Stopped. {len(client.pending())} reading(s) still waiting in {a.buffer}.")
+    print(f"Stopped. {client.pending_count()} reading(s) still waiting in {a.buffer}.")
 
 
 if __name__ == "__main__":
