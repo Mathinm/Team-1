@@ -1,3 +1,4 @@
+
 """Stock counts (FR-9) and non-expiry removals (FR-13) - Issue #10."""
 
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
-from app.models import Batch, Product, Removal, StockCount
+from app.models import Batch, Notification, Product, Removal, StockCount
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
 from app.sales.fefo import UNITS_WHOLE_ONLY, check_quantity
 from app.stock.schemas import RemovalIn, RemovalOut, StockCountIn, StockCountOut
@@ -96,8 +97,25 @@ def create_removal(
         recorded_at=datetime.now(timezone.utc),
     )
     db.add(removal)
+    db.flush()
+
+    # Record the notification in the same transaction as the stock removal.
+    db.add(
+        Notification(
+            store_id=get_settings().store_id,
+            batch_id=batch.batch_id,
+            notification_type="removal",
+            title="Stock removed",
+            message=(
+                f"Removed {qty} units from batch {batch.batch_id}. "
+                f"Reason: {reason}."
+            ),
+        )
+    )
+
     db.commit()
     db.refresh(removal)
+    db.refresh(batch)
 
     return RemovalOut(
         removalId=removal.removal_id,
@@ -120,7 +138,11 @@ def create_stock_count(
     reason = _reason(body.reason, 255)
 
     # Zero is valid when the shelf is empty.
-    counted = Decimal("0") if body.countedQuantity == 0 else check_quantity(body.countedQuantity)
+    counted = (
+        Decimal("0")
+        if body.countedQuantity == 0
+        else check_quantity(body.countedQuantity)
+    )
 
     batch = _batch(db, body.batchId)
     if counted > 0:
@@ -141,9 +163,11 @@ def create_stock_count(
         recorded_by=user.user_id,
         recorded_at=datetime.now(timezone.utc),
     )
+
     db.add(record)
     db.commit()
     db.refresh(record)
+    db.refresh(batch)
 
     return StockCountOut(
         stockCountId=record.stock_count_id,
