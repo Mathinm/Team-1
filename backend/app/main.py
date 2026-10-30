@@ -1,6 +1,55 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-app = FastAPI(title="PMS - Perishables Management System", version="0.1.0")
+from app.alerts.router import router as alerts_router
+from app.auth.reset import router as reset_router
+from app.auth.router import router as auth_router
+from app.auth.seed import seed_users
+from app.batches.router import router as batches_router
+from app.config import get_settings
+from app.db import Base, SessionLocal, engine
+from app.device.router import router as device_router
+from app.errors import register_error_handlers
+from app.products.router import router as products_router
+from app.refrigeration.router import router as refrigeration_router
+from app.sales.router import router as sales_router
+from app.scheduler import Scheduler
+from app.stock.router import router as stock_router
+from app.users.router import router as users_router
+
+# Show INFO lines from our own loggers (login, audit); uvicorn only sets up its own.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # No migration tool yet: create any missing tables at startup.
+    Base.metadata.create_all(engine)
+    with SessionLocal() as db:
+        seed_users(db)
+    # Door alarms, the daily low-stock check and alert delivery (S2-4, S2-5).
+    scheduler = Scheduler() if get_settings().scheduler_enabled else None
+    if scheduler:
+        scheduler.start()
+    yield
+    if scheduler:
+        scheduler.stop()
+
+
+app = FastAPI(title="PMS - Perishables Management System", version="0.1.0", lifespan=lifespan)
+register_error_handlers(app)
+app.include_router(auth_router)
+app.include_router(reset_router)
+app.include_router(stock_router)
+app.include_router(sales_router)
+app.include_router(device_router)
+app.include_router(users_router)
+app.include_router(products_router)
+app.include_router(batches_router)
+app.include_router(alerts_router)
+app.include_router(refrigeration_router)
 
 
 @app.get("/api/health")

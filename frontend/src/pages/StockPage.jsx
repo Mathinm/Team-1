@@ -84,6 +84,10 @@ export default function StockPage() {
         <ReceiveBatchForm
           products={products}
           suppliers={suppliers}
+          canAddSupplier={can(user.role, "manageSuppliers")}
+          onSupplierAdded={(s) =>
+            setSuppliers((list) => [...list, s].sort((a, b) => a.name.localeCompare(b.name)))
+          }
           defaultProductId={productId}
           onCancel={() => setPanel(null)}
           onDone={done}
@@ -175,7 +179,15 @@ function fefoRank(batches, index) {
   return batches.slice(0, index + 1).filter((b) => b.daysToExpiry >= 0).length;
 }
 
-function ReceiveBatchForm({ products, suppliers, defaultProductId, onCancel, onDone }) {
+function ReceiveBatchForm({
+  products,
+  suppliers,
+  canAddSupplier,
+  onSupplierAdded,
+  defaultProductId,
+  onCancel,
+  onDone,
+}) {
   const [form, setForm] = useState(() => {
     const p = products.find((x) => String(x.productId) === defaultProductId);
     const now = new Date();
@@ -240,12 +252,31 @@ function ReceiveBatchForm({ products, suppliers, defaultProductId, onCancel, onD
             {products.map((p) => <option key={p.productId} value={p.productId}>{p.name} ({p.sku})</option>)}
           </select>
         </Field>
-        <Field label="Supplier" error={errors.supplierId} id="b-supplier">
-          <select id="b-supplier" value={form.supplierId} onChange={set("supplierId")}>
-            <option value="">Choose…</option>
-            {suppliers.map((s) => <option key={s.supplierId} value={s.supplierId}>{s.name}</option>)}
-          </select>
-        </Field>
+        <div>
+          <Field
+            label="Supplier"
+            error={errors.supplierId}
+            hint={
+              suppliers.length === 0 && !canAddSupplier
+                ? "No suppliers yet. Ask a Manager or Admin to add one."
+                : undefined
+            }
+            id="b-supplier"
+          >
+            <select id="b-supplier" value={form.supplierId} onChange={set("supplierId")}>
+              <option value="">Choose…</option>
+              {suppliers.map((s) => <option key={s.supplierId} value={s.supplierId}>{s.name}</option>)}
+            </select>
+          </Field>
+          {canAddSupplier && (
+            <AddSupplier
+              onAdded={(s) => {
+                onSupplierAdded(s);
+                setForm((f) => ({ ...f, supplierId: String(s.supplierId) }));
+              }}
+            />
+          )}
+        </div>
         <Field label={`Quantity${product ? ` (${product.unit})` : ""}`} error={errors.quantity} id="b-qty">
           <input id="b-qty" type="number" min="0" step="any" value={form.quantity} onChange={set("quantity")} />
         </Field>
@@ -319,5 +350,67 @@ function RestockForm({ products, defaultProductId, onCancel, onDone }) {
         <button type="submit" className="btn btn--primary" disabled={busy}>{busy ? "Saving…" : "Restock"}</button>
       </div>
     </form>
+  );
+}
+
+/** Inline "add supplier" for Admin / Manager, so stock can be received on a fresh install. */
+function AddSupplier({ onAdded }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!name.trim()) {
+      setError("Enter the supplier's name");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const supplier = await api.createSupplier(name.trim());
+      onAdded(supplier);
+      setName("");
+      setOpen(false);
+    } catch (ex) {
+      setError(ex.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="link small" onClick={() => setOpen(true)}>
+        + Add supplier
+      </button>
+    );
+  }
+  return (
+    <div className="add-supplier">
+      <Field label="New supplier name" error={error} id="b-new-supplier">
+        <input
+          id="b-new-supplier"
+          value={name}
+          maxLength={120}
+          autoFocus
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            }
+          }}
+        />
+      </Field>
+      <div className="add-supplier__actions">
+        <button type="button" className="btn btn--small btn--ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn--small btn--primary" disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save supplier"}
+        </button>
+      </div>
+    </div>
   );
 }

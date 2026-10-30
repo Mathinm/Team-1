@@ -18,7 +18,25 @@ services:
     build: ./backend
     restart: always
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://pms:change_me@db:5432/pms}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://pms:password@db:5432/pms}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-true}
+      MAX_FAILED_LOGINS: ${MAX_FAILED_LOGINS:-5}
+      IDLE_TIMEOUT_MINUTES: ${IDLE_TIMEOUT_MINUTES:-30}
+      REQUIRE_2FA: ${REQUIRE_2FA:-true}
+      OTP_EXPIRE_MINUTES: ${OTP_EXPIRE_MINUTES:-10}
+      PASSWORD_RESET_EXPIRE_MINUTES: ${PASSWORD_RESET_EXPIRE_MINUTES:-30}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-PMS <no-reply@example.com>}
+      STORE_TIMEZONE: ${STORE_TIMEZONE:-Asia/Kolkata}
+      LOW_STOCK_CHECK_TIME: ${LOW_STOCK_CHECK_TIME:-06:00}
+      DOOR_OPEN_LIMIT_MINUTES: ${DOOR_OPEN_LIMIT_MINUTES:-5}
     depends_on:
       db:
         condition: service_healthy

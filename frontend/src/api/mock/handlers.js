@@ -148,6 +148,16 @@ const routes = [
   ["GET", /^\/auth\/me$/, ANY, (_m, _b, user) => ({ userId: user.userId, name: user.name, role: user.role })],
 
   ["GET", /^\/suppliers$/, ANY, (_m, _b, _u, db) => db.suppliers],
+  ["POST", /^\/suppliers$/, [ADMIN, MANAGER], (_m, body, _u, db) => {
+    const name = String(body?.name ?? "").split(/\s+/).filter(Boolean).join(" ");
+    if (!name) fail(400, "VALIDATION", "Supplier name is required");
+    if (name.length > 120) fail(400, "VALIDATION", "Supplier name is too long");
+    if (db.suppliers.some((x) => x.name.toLowerCase() === name.toLowerCase()))
+      fail(409, "DUPLICATE_SUPPLIER", "A supplier with this name already exists");
+    const supplier = { supplierId: Math.max(0, ...db.suppliers.map((x) => x.supplierId)) + 1, name };
+    db.suppliers.push(supplier);
+    return supplier;
+  }],
 
   ["GET", /^\/products$/, ANY, (_m, _b, _u, db) => db.products.map((x) => withStock(db, x))],
   ["POST", /^\/products$/, [ADMIN, MANAGER], (_m, body, _u, db) => {
@@ -278,7 +288,7 @@ const routes = [
 
 const DELAY_MS = 150;
 // POST routes that create a resource answer 201 (login, CSV import answer 200).
-const CREATED = new Set(["/products", "/batches", "/restocks", "/sales"]);
+const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales"]);
 
 /** Mock transport: returns {status, body} like an HTTP response. */
 export async function mockRequest(method, path, body, token, now = new Date()) {

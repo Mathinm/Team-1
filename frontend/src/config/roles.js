@@ -22,6 +22,7 @@ export const MENU = [
 // Actions inside screens.
 export const PERMISSIONS = {
   editProducts: [ADMIN, MANAGER],
+  manageSuppliers: [ADMIN, MANAGER],
   receiveBatch: [ADMIN, MANAGER, STAFF],
   recordSale: [ADMIN, CASHIER],
 };
