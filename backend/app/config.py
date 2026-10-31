@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     # Safe temperature range of a fridge in deg C; a reading outside it raises an alert.
     unit_temp_min_c: float = 0.0
     unit_temp_max_c: float = 8.0
+    # Rule-based markdowns: max discount percent allowed by Manager rules (FR-14, TC-EXP-07).
+    max_markdown_percent: float = 40.0
 
 
 @lru_cache

@@ -47,4 +47,11 @@ export const api = {
   dashboard: () => request("GET", "/dashboard"),
   report: (type, from, to) =>
     request("GET", `/reports/${type}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+
+  // Markdowns (FR-14, FR-42)
+  markdownRules: () => request("GET", "/markdown-rules"),
+  createMarkdownRule: (body) => request("POST", "/markdown-rules", body),
+  deleteMarkdownRule: (id) => request("DELETE", `/markdown-rules/${id}`),
+  applyMarkdowns: () => request("POST", "/markdowns/apply"),
+  markdowns: () => request("GET", "/markdowns"),
 };

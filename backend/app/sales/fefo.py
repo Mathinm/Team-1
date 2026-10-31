@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.alerts.service import refresh_after_change
 from app.config import get_settings
 from app.errors import ApiError
+from app.markdowns.service import get_active_batch_markdown, record_markdown_sale
 from app.models import Batch, Product, Sale, SaleBatch
 
 MAX_QTY = Decimal("999999.999")
@@ -135,6 +136,7 @@ def record_sale(
 
     left = qty
     used: list[BatchUsed] = []
+    total_amount = Decimal("0.00")
     for b in eligible:
         if left <= 0:
             break
@@ -143,14 +145,24 @@ def record_sale(
         left -= take
         used.append(BatchUsed(b.batch_id, take, b.expiry_date))
 
-    amount = (qty * product.selling_price).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        # Check if batch has an active markdown (FR-14, TC-EXP-08)
+        md = get_active_batch_markdown(db, b.batch_id)
+        if md is not None:
+            batch_unit_price = md.discounted_price
+            record_markdown_sale(db, b.batch_id, take)
+        else:
+            batch_unit_price = product.selling_price
+        total_amount += take * batch_unit_price
+
+    amount = total_amount.quantize(Decimal("0.01"), ROUND_HALF_UP)
+    avg_unit_price = (amount / qty).quantize(Decimal("0.01"), ROUND_HALF_UP)
     sale = Sale(
         store_id=store_id,
         product_id=product.product_id,
         sku=product.sku,
         quantity=qty,
         unit=product.unit,
-        unit_price=product.selling_price,
+        unit_price=avg_unit_price,
         amount=amount,
         sold_at=to_utc(sold_at) if sold_at else now,
         source=source,

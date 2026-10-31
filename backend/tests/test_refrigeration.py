@@ -165,7 +165,7 @@ def test_scheduler_round_runs_all_jobs_and_reports(client, db, sensor_key, Sessi
     send(client, sensor_key, "door", "OPEN", at=now() - timedelta(minutes=6))
     results = scheduler.run_once(session_factory=Session)
     assert results["doors"] == 1
-    assert set(results) == {"doors", "low_stock", "notifications"}
+    assert set(results) == {"doors", "low_stock", "markdowns", "notifications"}
     assert all(v is not None for v in results.values())
 
 
