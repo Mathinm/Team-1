@@ -244,3 +244,40 @@ def test_fefo_spans_marked_down_and_regular_batches(client, db, curd_product):
     )
     assert sale_resp.status_code == 201
     assert float(sale_resp.json()["amount"]) == 260.00
+
+
+def test_scheduler_runs_markdowns_job(client, db, curd_product, Session):
+    """The background scheduler runs apply_markdown_rules automatically on each tick."""
+    from app import scheduler
+
+    today = store_today()
+    b = Batch(
+        batch_id=301,
+        store_id=1,
+        product_id=curd_product.product_id,
+        supplier_id=1,
+        quantity=Decimal("5"),
+        initial_quantity=Decimal("5"),
+        received_at=datetime.now(timezone.utc),
+        expiry_date=today + timedelta(days=1),
+    )
+    db.add(b)
+    db.commit()
+
+    mgr = auth("mgr1", "Manager")
+    client.post(
+        "/api/markdown-rules",
+        json={
+            "productId": curd_product.product_id,
+            "daysBeforeExpiry": 1,
+            "discountPercent": 15.0,
+        },
+        headers=mgr,
+    )
+
+    results = scheduler.run_once(session_factory=Session)
+    assert "markdowns" in results
+    assert isinstance(results["markdowns"], list)
+    assert len(results["markdowns"]) == 1
+    assert results["markdowns"][0]["batchId"] == 301
+    assert float(results["markdowns"][0]["discountPercent"]) == 15.0

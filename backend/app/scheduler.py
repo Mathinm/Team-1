@@ -5,6 +5,7 @@ transaction, so one failing job never stops the others:
 
   doors         alarm for any fridge door still open past its limit (FR-16)
   low_stock     the once-a-day projected low-stock check (FR-10), at LOW_STOCK_CHECK_TIME
+  markdowns     apply rule-based discounts to nearing-expiry batches (FR-14)
   notifications deliver new alerts to staff and retry failed deliveries (NFR-2: within 60 s)
 
 To add a job (for example the expiry check), write `def my_job(db, now): ...` and add one line
@@ -22,6 +23,7 @@ from app.alerts.notifier import dispatch_pending
 from app.alerts.service import now_utc, run_daily_low_stock_job
 from app.config import get_settings
 from app.db import SessionLocal
+from app.markdowns.service import apply_markdown_rules
 from app.refrigeration.service import check_open_doors
 
 log = logging.getLogger("pms.scheduler")
@@ -32,6 +34,7 @@ Job = Callable[[Session, datetime], object]
 JOBS: list[tuple[str, Job]] = [
     ("doors", check_open_doors),
     ("low_stock", run_daily_low_stock_job),
+    ("markdowns", apply_markdown_rules),
     ("notifications", dispatch_pending),
 ]
 
