@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
@@ -10,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from app.alerts.service import as_utc, raise_alert
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Batch, Notification, Product
@@ -44,6 +46,10 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
         ).all()
 
         for batch, product in batches:
+            unit_str = product.unit if product and product.unit else "units"
+            qty_str = format(Decimal(str(batch.quantity)).normalize(), "f")
+            time_str = "tomorrow" if notification_type == "pre_expiry" else "today"
+
             values = {
                 "store_id": settings.store_id,
                 "batch_id": batch.batch_id,
@@ -53,9 +59,27 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
                 "message": (
                     f"{product.name} batch {batch.batch_id} expires on "
                     f"{batch.expiry_date.isoformat()}. "
-                    f"Remaining quantity: {batch.quantity}."
+                    f"Remaining quantity: {qty_str} {unit_str}."
                 ),
             }
+
+            # SAD 3.4 / ADR-7: raise alert so it appears in /api/alerts and is delivered to staff
+            alert_type = "PRE_EXPIRY" if notification_type == "pre_expiry" else "EXPIRY"
+            severity = "warning" if notification_type == "pre_expiry" else "critical"
+            alert_key = f"{notification_type}:{batch.batch_id}"
+            alert_msg = (
+                f"{product.name} batch {batch.batch_id} expires {time_str} "
+                f"({qty_str} {unit_str} remaining)"
+            )
+            raise_alert(
+                db,
+                type=alert_type,
+                key=alert_key,
+                message=alert_msg,
+                severity=severity,
+                product_id=batch.product_id,
+                triggered_at=as_utc(datetime.now(timezone.utc)),
+            )
 
             if dialect == "postgresql":
                 statement = (

@@ -42,19 +42,13 @@ def list_notifications(
     return [
         {
             "notificationId": item.notification_id,
-            "notification_id": item.notification_id,
             "storeId": item.store_id,
-            "store_id": item.store_id,
             "batchId": item.batch_id,
-            "batch_id": item.batch_id,
             "removalId": item.removal_id,
-            "removal_id": item.removal_id,
             "notificationType": item.notification_type,
-            "notification_type": item.notification_type,
             "title": item.title,
             "message": item.message,
             "createdAt": _timestamp(item.created_at),
-            "created_at": _timestamp(item.created_at),
         }
         for item in notifications
     ]
