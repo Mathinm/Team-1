@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.db import Base, SessionLocal, engine
 from app.device.router import router as device_router
 from app.errors import register_error_handlers
+from app.markdowns.router import router as markdowns_router
 from app.notifications.router import router as notifications_router
 from app.notifications.service import run_notification_scheduler
 from app.products.router import router as products_router
@@ -77,6 +78,7 @@ app.include_router(batches_router)
 app.include_router(notifications_router)
 app.include_router(alerts_router)
 app.include_router(refrigeration_router)
+app.include_router(markdowns_router)
 
 
 @app.get("/api/health")

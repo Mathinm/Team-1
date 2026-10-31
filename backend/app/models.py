@@ -362,5 +362,44 @@ class JobRun(Base):
     last_run_on: Mapped[date] = mapped_column(Date)
 
 
+# ---------------------------------------------------------------- markdowns (FR-14, FR-42)
+class MarkdownRule(Base):
+    __tablename__ = "markdown_rules"
+    rule_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.product_id"), nullable=True, index=True
+    )
+    category: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    days_before_expiry: Mapped[int] = mapped_column(Integer, default=1)
+    discount_percent: Mapped[Decimal] = mapped_column(MONEY)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String(80), default="manager")
+    created_at: Mapped[datetime] = _now_col()
+
+
+class Markdown(Base):
+    __tablename__ = "markdowns"
+    __table_args__ = (
+        Index("ix_markdowns_batch_status", "batch_id", "status"),
+        Index("ix_markdowns_store_product", "store_id", "product_id"),
+    )
+    markdown_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), index=True)
+    rule_id: Mapped[int | None] = mapped_column(
+        ForeignKey("markdown_rules.rule_id"), nullable=True
+    )
+    original_price: Mapped[Decimal] = mapped_column(MONEY)
+    discount_percent: Mapped[Decimal] = mapped_column(MONEY)
+    discounted_price: Mapped[Decimal] = mapped_column(MONEY)
+    initial_quantity: Mapped[Decimal] = mapped_column(QTY)
+    quantity_sold: Mapped[Decimal] = mapped_column(QTY, default=Decimal("0.000"))
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | sold_out
+    marked_down_at: Mapped[datetime] = _now_col()
+
+
 """End of model definitions."""
 

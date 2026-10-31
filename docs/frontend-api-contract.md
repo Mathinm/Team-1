@@ -93,6 +93,16 @@ Rules:
 - **Restock**: the UI sends no expiry; the backend sets it from the product's shelf-life.
 
 
+## Sprint 2: rule-based markdowns (FR-14, FR-42)
+
+| Method & path | Who | Response / Notes |
+|---|---|---|
+| `POST /api/markdown-rules` | Manager, Admin | Request: `{productId?, category?, daysBeforeExpiry, discountPercent, name?}` -> 201 `{ruleId, productId, category, daysBeforeExpiry, discountPercent, active, createdBy, createdAt}`; 422 if discount exceeds maximum |
+| `GET /api/markdown-rules` | Admin, Manager, Inventory Staff | 200 `[rule]` |
+| `DELETE /api/markdown-rules/{id}` | Manager, Admin | 200 `{deleted: true, ruleId}` |
+| `POST /api/markdowns/apply` | Admin, Manager, Inventory Staff | 200 `{applied: count, markdowns: [markdown]}` |
+| `GET /api/markdowns` | Admin, Manager, Inventory Staff | 200 `[{markdownId, batchId, productId, productName, sku, originalPrice, discountPercent, discountedPrice, initialQuantity, quantitySold, remainingQuantity, sellThroughPercent, status, markedDownAt}]` |
+
 ## Sprint 2: dashboard and reports (issue #16)
 
 | Method & path | Who | Response |
