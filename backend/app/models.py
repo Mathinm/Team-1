@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -78,6 +79,35 @@ class Batch(Base):
     initial_quantity: Mapped[Decimal] = mapped_column(QTY)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expiry_date: Mapped[date] = mapped_column(Date)  # last day the batch may be sold
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index(
+            "uq_notifications_expiry",
+            "store_id",
+            "batch_id",
+            "notification_type",
+            unique=True,
+            postgresql_where=text("notification_type IN ('pre_expiry', 'expiry')"),
+            sqlite_where=text("notification_type IN ('pre_expiry', 'expiry')"),
+        ),
+        Index("ix_notifications_store_created", "store_id", "created_at"),
+    )
+
+    notification_id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("batches.batch_id"), index=True, nullable=True
+    )
+    removal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("removals.removal_id"), nullable=True
+    )
+    notification_type: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(120))
+    message: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = _now_col()
 
 
 # ---------------------------------------------------------------- sales (S1-5)
@@ -155,7 +185,8 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('Admin', 'Manager', 'Inventory Staff', 'Cashier')", name="ck_users_role"
+            "role IN ('Admin', 'Manager', 'Inventory Staff', 'Cashier')",
+            name="ck_users_role",
         ),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -175,8 +206,10 @@ class User(Base):
     # NFR-10: the last emailed 2FA code (hash only), when it was sent and when it expires
     otp_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     otp_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    otp_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
-                                                            nullable=True)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
 
 class PasswordReset(Base):
@@ -230,7 +263,6 @@ class Removal(Base):
     reason: Mapped[str] = mapped_column(String(40))
     recorded_by: Mapped[str] = mapped_column(String(80))
     recorded_at: Mapped[datetime] = _now_col()
-
 
 
 # ----------------------------------------------------------------
@@ -328,3 +360,7 @@ class JobRun(Base):
     store_id: Mapped[int] = mapped_column(Integer, default=1)
     job: Mapped[str] = mapped_column(String(40))
     last_run_on: Mapped[date] = mapped_column(Date)
+
+
+"""End of model definitions."""
+

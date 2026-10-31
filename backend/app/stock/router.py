@@ -7,11 +7,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.alerts.service import refresh_after_change
+from app.alerts.service import raise_alert, refresh_after_change, resolve_alert
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
-from app.models import Batch, Product, Removal, StockCount
+from app.models import Batch, Notification, Product, Removal, StockCount
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
 from app.sales.fefo import UNITS_WHOLE_ONLY, check_quantity
 from app.stock.schemas import RemovalIn, RemovalOut, StockCountIn, StockCountOut
@@ -45,7 +45,7 @@ def _batch(db: Session, batch_id: int) -> Batch:
     return batch
 
 
-def _check_unit_quantity(db: Session, batch: Batch, qty: Decimal) -> None:
+def _check_unit_quantity(db: Session, batch: Batch, qty: Decimal) -> Product:
     product = db.scalar(
         select(Product).where(
             Product.product_id == batch.product_id,
@@ -60,6 +60,7 @@ def _check_unit_quantity(db: Session, batch: Batch, qty: Decimal) -> None:
             "INVALID",
             f"{product.name} requires a whole-number quantity",
         )
+    return product
 
 
 def _timestamp(value: datetime) -> str:
@@ -78,7 +79,7 @@ def create_removal(
     reason = _reason(body.reason, 40)
     qty = check_quantity(body.qty)
     batch = _batch(db, body.batchId)
-    _check_unit_quantity(db, batch, qty)
+    product = _check_unit_quantity(db, batch, qty)
 
     if qty > batch.quantity:
         raise ApiError(
@@ -97,9 +98,46 @@ def create_removal(
         recorded_at=datetime.now(timezone.utc),
     )
     db.add(removal)
-    refresh_after_change(db, batch.product_id)  # FR-11
+    db.flush()
+
+    unit_name = product.unit if product and product.unit else "units"
+    qty_fmt = format(Decimal(str(qty)).normalize(), "f")
+    removal_msg = f"Removed {qty_fmt} {unit_name} from batch {batch.batch_id}. Reason: {reason}."
+
+    db.add(
+        Notification(
+            store_id=get_settings().store_id,
+            batch_id=batch.batch_id,
+            removal_id=removal.removal_id,
+            notification_type="removal",
+            title="Stock removed",
+            message=removal_msg,
+        )
+    )
+
+    # NFR-12 / NFR-20: deliver removal notification within 2 minutes and show on alerts screen
+    raise_alert(
+        db,
+        type="STOCK_REMOVAL",
+        key=f"removal:{removal.removal_id}",
+        message=(
+            f"Stock removed: {qty_fmt} {unit_name} from {product.name} "
+            f"batch {batch.batch_id} ({reason})"
+        ),
+        severity="info",
+        product_id=batch.product_id,
+        triggered_at=removal.recorded_at,
+    )
+
+    if batch.quantity <= 0:
+        resolve_alert(db, f"expiry:{batch.batch_id}", "Batch removed from stock")
+        resolve_alert(db, f"pre_expiry:{batch.batch_id}", "Batch removed from stock")
+
+    refresh_after_change(db, batch.product_id)
+
     db.commit()
     db.refresh(removal)
+    db.refresh(batch)
 
     return RemovalOut(
         removalId=removal.removal_id,
@@ -121,8 +159,9 @@ def create_stock_count(
     """FR-9: compare counted stock against the system quantity and audit the adjustment."""
     reason = _reason(body.reason, 255)
 
-    # Zero is valid when the shelf is empty.
-    counted = Decimal("0") if body.countedQuantity == 0 else check_quantity(body.countedQuantity)
+    counted = (
+        Decimal("0") if body.countedQuantity == 0 else check_quantity(body.countedQuantity)
+    )
 
     batch = _batch(db, body.batchId)
     if counted > 0:
@@ -131,7 +170,6 @@ def create_stock_count(
     system_qty = batch.quantity
     variance = counted - system_qty
 
-    # The physical count becomes the new system quantity.
     batch.quantity = counted
     record = StockCount(
         store_id=get_settings().store_id,
@@ -143,10 +181,12 @@ def create_stock_count(
         recorded_by=user.user_id,
         recorded_at=datetime.now(timezone.utc),
     )
+
     db.add(record)
-    refresh_after_change(db, batch.product_id)  # FR-11: a count can lower or raise stock
+    refresh_after_change(db, batch.product_id)
     db.commit()
     db.refresh(record)
+    db.refresh(batch)
 
     return StockCountOut(
         stockCountId=record.stock_count_id,
@@ -158,3 +198,4 @@ def create_stock_count(
         recordedBy=record.recorded_by,
         recordedAt=_timestamp(record.recorded_at),
     )
+

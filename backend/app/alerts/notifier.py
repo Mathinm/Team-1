@@ -26,7 +26,12 @@ BATCH_SIZE = 50
 
 # Who is told about which alert type. Other modules add their own line (e.g. expiry -> staff).
 DEFAULT_RECIPIENT_ROLES = ("Manager",)
-RECIPIENT_ROLES: dict[str, tuple[str, ...]] = {}
+RECIPIENT_ROLES: dict[str, tuple[str, ...]] = {
+    "EXPIRY": ("Manager", "Inventory Staff"),
+    "PRE_EXPIRY": ("Manager", "Inventory Staff"),
+    "REMOVAL": ("Manager", "Inventory Staff"),
+    "STOCK_REMOVAL": ("Manager", "Inventory Staff"),
+}
 
 
 class Notifier(Protocol):
