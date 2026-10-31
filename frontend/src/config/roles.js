@@ -16,6 +16,8 @@ export const MENU = [
   { path: "/products", label: "Products", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/stock", label: "Stock & FEFO", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/sales", label: "Sales", roles: [ADMIN, CASHIER] },
+  { path: "/alerts", label: "Alerts", roles: [ADMIN, MANAGER, STAFF] },
+  { path: "/refrigeration", label: "Refrigeration", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/reports", label: "Reports", roles: [ADMIN, MANAGER] },
 ];
 
@@ -25,6 +27,7 @@ export const PERMISSIONS = {
   manageSuppliers: [ADMIN, MANAGER],
   receiveBatch: [ADMIN, MANAGER, STAFF],
   recordSale: [ADMIN, CASHIER],
+  acknowledgeAlerts: [ADMIN, MANAGER],
 };
 
 export function can(role, permission) {

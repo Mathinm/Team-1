@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { canOpen } from "../config/roles.js";
-import { Banner, EmptyState, ExpiryBadge, Loading, PageHeader, money } from "../components/ui.jsx";
+import { Banner, EmptyState, ExpiryBadge, Loading, PageHeader, SeverityTag, money } from "../components/ui.jsx";
 import { describeDaysToExpiry, formatDateTime } from "../lib/dates.js";
 
 const REFRESH_MS = 15000; // live data refreshes without a manual reload (UIN-6)
@@ -154,20 +154,5 @@ function Tile({ label, value, note, tone = "neutral" }) {
       <span className="tile__value">{value}</span>
       {note && <span className="tile__note">{note}</span>}
     </div>
-  );
-}
-
-const SEVERITY = {
-  critical: { cls: "badge--expired", icon: "■", text: "Critical" },
-  warning: { cls: "badge--near", icon: "▲", text: "Warning" },
-  info: { cls: "badge--info", icon: "●", text: "Info" },
-};
-
-export function SeverityTag({ severity }) {
-  const s = SEVERITY[severity] ?? SEVERITY.info;
-  return (
-    <span className={`badge ${s.cls}`}>
-      <span aria-hidden="true">{s.icon}</span> {s.text}
-    </span>
   );
 }

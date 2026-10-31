@@ -266,3 +266,33 @@ def test_duplicate_reading_does_not_apply_twice(client, db, sensor_key):
     assert client.post("/api/device/readings", json=body, headers=h).status_code == 200
     assert client.post("/api/device/readings", json=body, headers=h).status_code == 409
     assert len(alerts(client)) == 1
+
+
+# ---------------------------------------------------------------- temperature history (UI-4)
+def readings(client, unit, hours=None, role=("manager1", "Manager")):
+    params = {} if hours is None else {"hours": hours}
+    return client.get(f"/api/refrigeration/units/{unit}/readings", params=params,
+                      headers=auth(*role))
+
+
+def test_temperature_history_is_oldest_first_and_limited_to_the_window(client, db, sensor_key):
+    send(client, sensor_key, "temperature", 3.0, at=now() - timedelta(hours=30))
+    send(client, sensor_key, "temperature", 5.0, at=now() - timedelta(minutes=10))
+    send(client, sensor_key, "temperature", 4.0, at=now() - timedelta(hours=2))
+    send(client, sensor_key, "door", "OPEN", at=now() - timedelta(minutes=5))
+
+    r = readings(client, "Fridge-2")
+    assert r.status_code == 200, r.text
+    assert [p["value"] for p in r.json()] == [4.0, 5.0]  # last 24 h, oldest first, no door
+
+    week = readings(client, "Fridge-2", hours=168).json()
+    assert [p["value"] for p in week] == [3.0, 4.0, 5.0]
+
+
+def test_temperature_history_rules(client, db, sensor_key):
+    make_unit(client, sensor_key)
+    assert readings(client, "Fridge-9").status_code == 404
+    assert readings(client, "Fridge-2", hours=0).status_code == 400
+    assert readings(client, "Fridge-2", hours=169).status_code == 400
+    assert readings(client, "Fridge-2", role=("staff1", "Inventory Staff")).status_code == 200
+    assert readings(client, "Fridge-2", role=("cashier1", "Cashier")).status_code == 403

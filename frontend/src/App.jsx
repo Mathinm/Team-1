@@ -9,6 +9,8 @@ import StockPage from "./pages/StockPage.jsx";
 import SalesPage from "./pages/SalesPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
+import AlertsPage from "./pages/AlertsPage.jsx";
+import RefrigerationPage from "./pages/RefrigerationPage.jsx";
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -22,6 +24,8 @@ function AppRoutes() {
         <Route path="/products" element={guard(<ProductsPage />)} />
         <Route path="/stock" element={guard(<StockPage />)} />
         <Route path="/sales" element={guard(<SalesPage />)} />
+        <Route path="/alerts" element={guard(<AlertsPage />)} />
+        <Route path="/refrigeration" element={guard(<RefrigerationPage />)} />
         <Route path="/reports" element={guard(<ReportsPage />)} />
       </Route>
       <Route path="*" element={<Navigate to={user ? homePathFor(user.role) : "/login"} replace />} />

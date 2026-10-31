@@ -2,6 +2,7 @@
 // extra list endpoints the UI needs are documented in docs/frontend-api-contract.md.
 
 import { request } from "./client.js";
+import { normalizeAlert, normalizeUnit } from "./normalize.js";
 
 export const api = {
   // Auth (SEC-1)
@@ -31,6 +32,16 @@ export const api = {
     form.append("file", file);
     return request("POST", "/sales/csv", form);
   },
+
+  // Alerts and refrigeration (FR-15, FR-16, UI-4)
+  alerts: async (status = "active") =>
+    (await request("GET", `/alerts?status=${status}`)).map(normalizeAlert),
+  acknowledgeAlert: async (id) => normalizeAlert(await request("POST", `/alerts/${id}/acknowledge`)),
+  units: async () => (await request("GET", "/refrigeration/units")).map(normalizeUnit),
+  unitReadings: (unitId, hours = 24) =>
+    request("GET", `/refrigeration/units/${encodeURIComponent(unitId)}/readings?hours=${hours}`),
+  // Demo mode only: lets the Refrigeration page simulate sensor events.
+  simulateReading: (body) => request("POST", "/device/readings", body),
 
   // Dashboard and reports (FR-18)
   dashboard: () => request("GET", "/dashboard"),

@@ -79,3 +79,18 @@ export function PageHeader({ title, subtitle, actions }) {
 export function money(n) {
   return `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
+
+const SEVERITY = {
+  critical: { cls: "badge--expired", icon: "■", text: "Critical" },
+  warning: { cls: "badge--near", icon: "▲", text: "Warning" },
+  info: { cls: "badge--info", icon: "●", text: "Info" },
+};
+
+export function SeverityTag({ severity }) {
+  const s = SEVERITY[severity] ?? SEVERITY.info;
+  return (
+    <span className={`badge ${s.cls}`}>
+      <span aria-hidden="true">{s.icon}</span> {s.text}
+    </span>
+  );
+}
