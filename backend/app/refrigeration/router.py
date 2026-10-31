@@ -1,6 +1,8 @@
 """Refrigeration screen data (UC-34) and per-unit settings (FR-16 "configured threshold")."""
 
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -8,9 +10,9 @@ from app.alerts.service import as_utc
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
-from app.models import Alert, RefrigerationUnit
+from app.models import Alert, RefrigerationUnit, SensorReading
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
-from app.refrigeration.schemas import UnitOut, UnitSettingsIn
+from app.refrigeration.schemas import ReadingPoint, UnitOut, UnitSettingsIn
 from app.refrigeration.service import effective_limits
 
 router = APIRouter(prefix="/api/refrigeration", tags=["refrigeration"])
@@ -80,3 +82,37 @@ def update_unit_settings(
         raise ApiError(400, "INVALID", "Minimum temperature must be below maximum")
     db.commit()
     return _out(unit, _open_alert_counts(db).get(unit.unit_id, 0))
+
+
+@router.get("/units/{unit_id}/readings", response_model=list[ReadingPoint])
+def unit_readings(
+    unit_id: str,
+    hours: int = Query(default=24, ge=1, le=168),
+    _user: CurrentUser = Depends(viewers),
+    db: Session = Depends(get_db),
+):
+    """Temperature history for the Refrigeration screen chart (UI-4), oldest first.
+
+    Uses each reading's own recorded_at, so readings that arrived late after an outage are
+    shown at the time they were taken.
+    """
+    store_id = get_settings().store_id
+    known = db.scalar(
+        select(RefrigerationUnit.id).where(
+            RefrigerationUnit.store_id == store_id, RefrigerationUnit.unit_id == unit_id
+        )
+    )
+    if known is None:
+        raise ApiError(404, "NOT_FOUND", f"Unknown refrigeration unit {unit_id}")
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = db.execute(
+        select(SensorReading.recorded_at, SensorReading.value_num)
+        .where(
+            SensorReading.store_id == store_id,
+            SensorReading.unit_id == unit_id,
+            SensorReading.type == "temperature",
+            SensorReading.recorded_at >= since,
+        )
+        .order_by(SensorReading.recorded_at, SensorReading.reading_id)
+    ).all()
+    return [ReadingPoint(recordedAt=as_utc(at), value=value) for at, value in rows]

@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
-import { menuFor } from "../config/roles.js";
+import { canOpen, menuFor } from "../config/roles.js";
+import { api } from "../api/endpoints.js";
 import { USE_MOCK } from "../api/client.js";
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const items = menuFor(user.role);
+  const activeAlerts = useActiveAlertCount(canOpen(user.role, "/alerts"));
 
   return (
     <div className="shell">
@@ -37,6 +39,9 @@ export default function Layout() {
         {items.map((m) => (
           <NavLink key={m.path} to={m.path} onClick={() => setOpen(false)}>
             {m.label}
+            {m.path === "/alerts" && activeAlerts > 0 && (
+              <span className="nav-count" aria-label={`${activeAlerts} active alerts`}>{activeAlerts}</span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -46,4 +51,29 @@ export default function Layout() {
       </main>
     </div>
   );
+}
+
+export const ALERTS_CHANGED = "pms:alerts-changed";
+
+/** Polls the number of active alerts so the menu shows a live count (NFR-2). */
+function useActiveAlertCount(enabled) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let alive = true;
+    const load = () =>
+      api
+        .alerts("active")
+        .then((list) => alive && setCount(list.length))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 15000);
+    window.addEventListener(ALERTS_CHANGED, load); // refresh at once after an acknowledge
+    return () => {
+      alive = false;
+      clearInterval(id);
+      window.removeEventListener(ALERTS_CHANGED, load);
+    };
+  }, [enabled]);
+  return count;
 }

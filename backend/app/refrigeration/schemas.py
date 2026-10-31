@@ -19,6 +19,12 @@ class UnitOut(BaseModel):
     openAlerts: int  # alerts about this unit that are not resolved
 
 
+
+class ReadingPoint(BaseModel):
+    recordedAt: datetime
+    value: float
+
+
 class UnitSettingsIn(BaseModel):
     doorOpenLimitMinutes: int | None = Field(default=None, ge=1, le=240)
     tempMin: float | None = Field(default=None, ge=-60, le=100)

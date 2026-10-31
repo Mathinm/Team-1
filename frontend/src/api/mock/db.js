@@ -192,7 +192,7 @@ function seedHistory(now, products, batches) {
     { type: "expiry_soon", severity: "warning", message: "Bread Loaf batch B-107 expires tomorrow", productId: 5, createdAt: hoursAgo(10), status: "active" },
     { type: "projected_low_stock", severity: "info", message: "Tomato is projected to fall below 10 kg tomorrow", productId: 1, createdAt: hoursAgo(11), status: "active" },
     { type: "temperature", severity: "warning", message: "Chiller (Produce) at 11.9 °C, above 10 °C", unitId: "CH-1", createdAt: hoursAgo(21), status: "acknowledged", acknowledgedBy: "manager1", acknowledgedAt: hoursAgo(20.5) },
-    { type: "door_open", severity: "warning", message: "Chiller (Produce) door open for more than 2 minutes", unitId: "CH-1", createdAt: hoursAgo(21.5), status: "acknowledged", acknowledgedBy: "staff1", acknowledgedAt: hoursAgo(21.3) },
+    { type: "door_open", severity: "warning", message: "Chiller (Produce) door open for more than 2 minutes", unitId: "CH-1", createdAt: hoursAgo(21.5), status: "acknowledged", acknowledgedBy: "manager1", acknowledgedAt: hoursAgo(21.3) },
     { type: "power", severity: "warning", message: "Mains power failure; backup took 14 s to take over", createdAt: atHour(addDays(now, -3), 19, 30).toISOString(), status: "acknowledged", acknowledgedBy: "manager1", acknowledgedAt: atHour(addDays(now, -3), 19, 45).toISOString() },
     { type: "removal", severity: "info", message: "3 kg Tomato removed (Damaged) by staff1", productId: 1, createdAt: removals[0].removedAt, status: "acknowledged", acknowledgedBy: "manager1", acknowledgedAt: removals[0].removedAt },
   ].map((a, i) => ({ alertId: i + 1, acknowledgedBy: null, acknowledgedAt: null, unitId: null, productId: null, ...a }));

@@ -166,6 +166,20 @@ header `X-Device-Key`. Get a key with `python -m app.device.provision <name> <po
 - Errors: 401 `INVALID_DEVICE_KEY`; 403 wrong kind of device for the endpoint; 400 malformed data (reading is not stored); sales also return 422 `INSUFFICIENT_STOCK` / `BATCH_EXPIRED`.
 - `alertRaised` is `true` when the reading raised an alert (see Sprint 2 — Alerts and refrigeration).
 
+## Sprint 2: alerts and refrigeration screens (issue #17)
+
+The Alerts and Refrigeration screens use the backend endpoints above (issues #11, #13-#15) plus one
+added for the temperature chart:
+
+| Method & path | Who | Request | Response |
+|---|---|---|---|
+| `GET /refrigeration/units/{unitId}/readings?hours=24` **(added)** | Admin, Manager, Inventory Staff | `hours` 1-168 (default 24) | 200 `[{recordedAt, value}]` temperature readings by the sensor's own time, oldest first; 404 unknown unit; 400 bad `hours` |
+
+- The screens poll `GET /alerts` every 10-15 s, which keeps alerts on screen within NFR-2's 60 s. Tabs: active, acknowledged, resolved, all.
+- Alert types shown with a label: `LOW_STOCK`, `PROJECTED_LOW_STOCK`, `PRE_EXPIRY`, `EXPIRY`, `STOCK_REMOVAL`, `UNIT_FAILURE`, `DOOR_OPEN`, `TEMPERATURE`; any other type is shown as it is.
+- `frontend/src/api/normalize.js` turns backend alerts and units into the screens' shape (e.g. `door: "OPEN"` -> door-open flag, temperature vs `tempMin`/`tempMax` -> out-of-range flag).
+- Demo mode only: the Refrigeration page has buttons that simulate sensor readings to show alerts being raised.
+
 ## Demo mode
 
 `npm run dev` uses a built-in fake backend (`frontend/src/api/mock/`) that follows this contract, controlled by `VITE_USE_MOCK` in `frontend/.env.development`. Set it to `false` once the real endpoints are merged. Docker builds always use the real backend.

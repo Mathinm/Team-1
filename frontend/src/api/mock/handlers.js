@@ -274,6 +274,36 @@ const routes = [
     return { imported, failed: errors.length, errors };
   }],
 
+  // Alerts (FR-10..FR-16, UI-4)
+  ["GET", /^\/alerts(?:\?status=(active|acknowledged|resolved|open|all))?$/, [ADMIN, MANAGER, STAFF], ([, status = "all"], _b, _u, db) =>
+    db.alerts
+      .filter((a) => status === "all" || a.status === status || (status === "open" && a.status !== "resolved"))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))],
+  ["POST", /^\/alerts\/(\d+)\/acknowledge$/, [ADMIN, MANAGER], ([, id], _b, user, db, now) => {
+    const alert = db.alerts.find((a) => a.alertId === Number(id));
+    if (!alert) fail(404, "NOT_FOUND", "Unknown alert");
+    // Same as the backend: repeating is harmless and a resolved alert stays resolved.
+    if (!alert.acknowledgedAt) {
+      Object.assign(alert, { acknowledgedBy: user.userId, acknowledgedAt: now.toISOString() });
+      if (alert.status === "active") alert.status = "acknowledged";
+    }
+    return alert;
+  }],
+
+  // Refrigeration units (FR-15, FR-16)
+  ["GET", /^\/refrigeration\/units$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db) => db.units.map((u) => unitView(db, u))],
+  ["GET", /^\/refrigeration\/units\/([A-Za-z0-9-]+)\/readings\?hours=(\d+)$/, [ADMIN, MANAGER, STAFF], ([, id, hours], _b, _u, db, now) => {
+    if (!db.units.some((u) => u.unitId === id)) fail(404, "NOT_FOUND", "Unknown unit");
+    const since = now.getTime() - Number(hours) * 3600000;
+    return db.readings
+      .filter((r) => r.unitId === id && r.type === "temperature" && new Date(r.recordedAt).getTime() >= since)
+      .map((r) => ({ recordedAt: r.recordedAt, value: r.value }));
+  }],
+
+  // Device API stand-in (owned by #4). Mock only: no device key, used by the
+  // demo controls on the Refrigeration page to trigger alerts.
+  ["POST", /^\/device\/readings$/, "public", (_m, body, _u, db, now) => deviceReading(db, body ?? {}, now)],
+
   // Dashboard and reports (FR-18)
   ["GET", /^\/dashboard$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db, now) => buildDashboard(db, now)],
   ["GET", /^\/reports\/([a-z-]+)\?(.*)$/, [ADMIN, MANAGER], ([, type, qs], _b, _u, db, now) => {
@@ -285,6 +315,74 @@ const routes = [
     return { ...report, from: params.get("from"), to: params.get("to") };
   }],
 ];
+
+function latestReading(db, unitId) {
+  for (let i = db.readings.length - 1; i >= 0; i--) {
+    const r = db.readings[i];
+    if (r.unitId === unitId && r.type === "temperature") return r;
+  }
+  return null;
+}
+
+function unitView(db, u) {
+  const last = latestReading(db, u.unitId);
+  return {
+    unitId: u.unitId,
+    name: u.name,
+    tempMin: u.tempMin,
+    tempMax: u.tempMax,
+    status: u.status,
+    doorOpen: u.doorOpen,
+    currentTemp: last?.value ?? null,
+    lastReadingAt: last?.recordedAt ?? null,
+    inRange: last ? last.value >= u.tempMin && last.value <= u.tempMax : null,
+  };
+}
+
+function raise(db, now, alert) {
+  db.alerts.push({
+    alertId: db.nextIds.alert++,
+    createdAt: now.toISOString(),
+    status: "active",
+    acknowledgedBy: null,
+    acknowledgedAt: null,
+    unitId: null,
+    productId: null,
+    ...alert,
+  });
+}
+
+/** {unitId, type: temperature|door|status, value} -> stores it and raises alerts. */
+function deviceReading(db, { unitId, type, value }, now) {
+  const unit = db.units.find((u) => u.unitId === unitId);
+  if (!unit) fail(400, "INVALID", "Unknown unit");
+  let alertRaised = false;
+  if (type === "temperature") {
+    const v = Number(value);
+    if (!Number.isFinite(v)) fail(400, "INVALID", `Temperature must be a number, got "${value}"`);
+    db.readings.push({ unitId, type, value: v, recordedAt: now.toISOString() });
+    if (v < unit.tempMin || v > unit.tempMax) {
+      raise(db, now, { type: "temperature", severity: "warning", unitId, message: `${unit.name} at ${v} °C, outside ${unit.tempMin} to ${unit.tempMax} °C` });
+      alertRaised = true;
+    }
+  } else if (type === "door") {
+    unit.doorOpen = value === true || value === "open";
+    if (unit.doorOpen) {
+      raise(db, now, { type: "door_open", severity: "warning", unitId, message: `${unit.name} door open for more than 2 minutes` });
+      alertRaised = true;
+    }
+  } else if (type === "status") {
+    const failed = value === "failed";
+    if (failed && unit.status !== "failed") {
+      raise(db, now, { type: "unit_failure", severity: "critical", unitId, message: `${unit.name} has failed` });
+      alertRaised = true;
+    }
+    unit.status = failed ? "failed" : "ok";
+  } else {
+    fail(400, "INVALID", "type must be temperature, door or status");
+  }
+  return { status: "stored", alertRaised };
+}
 
 const DELAY_MS = 150;
 // POST routes that create a resource answer 201 (login, CSV import answer 200).
