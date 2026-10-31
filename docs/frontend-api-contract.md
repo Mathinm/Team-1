@@ -92,6 +92,31 @@ Rules:
 - **Sales**: 422 with code `INSUFFICIENT_STOCK` or `BATCH_EXPIRED` (FR-7).
 - **Restock**: the UI sends no expiry; the backend sets it from the product's shelf-life.
 
+
+## Sprint 2: dashboard and reports (issue #16)
+
+| Method & path | Who | Response |
+|---|---|---|
+| `GET /dashboard` **(added)** | Admin, Manager, Inventory Staff | `{salesToday:{count, amount}, stockValue, wasteLast7Days:{value, removals}, lowStock:[{productId, name, stock, threshold, unit}], expiringSoon:[{batchId, productName, quantity, unit, expiryDate, daysToExpiry}] (≤ 2 days, incl. expired), activeAlerts:{count, critical, latest:[alert]}}` |
+| `GET /reports/{type}?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Manager | `{type, title, from, to, columns:[{key, label, numeric?}], rows:[{...}], summary:[{label, value}]}`; 400 if from > to; 404 unknown type |
+
+Report `type` values and what each must contain (reference implementation:
+`frontend/src/api/mock/reports.js`):
+
+| type | Rows |
+|---|---|
+| `stock` | per product: on hand, batches, next expiry, value at cost, status |
+| `wastage` | per product in range: sold, wasted, waste % = wasted / (sold + wasted), money lost = Σ removal qty × cost price |
+| `sellers` | products ranked by revenue, tagged best / worst |
+| `supplier-quality` | per supplier: deliveries, units received, units wasted, waste rate % |
+| `removals` | every removal: date, product, batch, qty, reason, worker, value |
+| `temperature` | per unit per day: allowed range, min / avg / max, readings out of range |
+| `power-events` | mains failure start, restored, duration, backup take-over seconds |
+| `alerts` | raised time, severity, message, status, acknowledged by |
+
+An empty range returns `rows: []`; the UI shows "No data for this period".
+PDF and CSV are generated in the browser from this JSON, so the backend only
+returns JSON (the SAD's `format=pdf|csv` parameter is optional).
 ## Batches behaviour (issue #6)
 
 - `POST /batches` (Admin, Manager, Inventory Staff): `{productId, supplierId, quantity, unit?, receivedAt, expiryDate}`

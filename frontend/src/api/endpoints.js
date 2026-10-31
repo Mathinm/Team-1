@@ -31,4 +31,9 @@ export const api = {
     form.append("file", file);
     return request("POST", "/sales/csv", form);
   },
+
+  // Dashboard and reports (FR-18)
+  dashboard: () => request("GET", "/dashboard"),
+  report: (type, from, to) =>
+    request("GET", `/reports/${type}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 };

@@ -219,3 +219,40 @@ tbody tr:last-child td { border-bottom: 0; }
 .demo-users { margin-top: 16px; font-size: 0.9rem; }
 .demo-users summary { cursor: pointer; color: var(--muted); }
 .demo-users ul { padding-left: 18px; }
+
+/* ---------- dashboard & reports (FR-18) ---------- */
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); margin-bottom: 16px; }
+@media (min-width: 760px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1150px) { .tiles { grid-template-columns: repeat(6, 1fr); } }
+.tile {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow);
+}
+.tile__label { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.tile__value { font-size: 1.45rem; font-weight: 700; }
+.tile__note { font-size: 0.8rem; color: var(--muted); }
+.tile--ok { border-left-color: var(--ok); }
+.tile--warn { border-left-color: #d99a00; }
+.tile--danger { border-left-color: var(--danger); }
+.tile--danger .tile__value { color: var(--danger); }
+
+.card__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.card__head h2 { margin: 0; }
+.card__head p { margin: 2px 0 0; }
+.card__head a { color: var(--info); font-weight: 600; font-size: 0.9rem; }
+.card .empty { padding: 16px; }
+.two-col__wide { grid-column: 1 / -1; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.list li:last-child { border-bottom: 0; }
+.badge--info { background: var(--info-soft); color: var(--info); }
+
+.form__actions--split { justify-content: space-between; align-items: center; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.report-summary { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; }
+.report-summary div { display: flex; flex-direction: column; }
+.report-summary strong { font-size: 1.15rem; }
