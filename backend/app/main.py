@@ -42,15 +42,18 @@ async def lifespan(_: FastAPI):
 
     # S2-2 expiry notification scheduler.
     stop_event = asyncio.Event()
-    notification_task = asyncio.create_task(
-        run_notification_scheduler(stop_event)
+    notification_task = (
+        asyncio.create_task(run_notification_scheduler(stop_event))
+        if get_settings().scheduler_enabled
+        else None
     )
 
     try:
         yield
     finally:
         stop_event.set()
-        await notification_task
+        if notification_task:
+            await notification_task
 
         if scheduler:
             scheduler.stop()

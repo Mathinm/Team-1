@@ -1,4 +1,4 @@
-"""Notification API for PMS Sprint 2, Issue #11."""
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -10,6 +10,14 @@ from app.models import Notification
 from app.rbac import get_current_user
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
+
+
+def _timestamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
 
 
 @router.get("")
@@ -33,14 +41,20 @@ def list_notifications(
 
     return [
         {
+            "notificationId": item.notification_id,
             "notification_id": item.notification_id,
+            "storeId": item.store_id,
             "store_id": item.store_id,
+            "batchId": item.batch_id,
             "batch_id": item.batch_id,
+            "removalId": item.removal_id,
             "removal_id": item.removal_id,
+            "notificationType": item.notification_type,
             "notification_type": item.notification_type,
             "title": item.title,
             "message": item.message,
-            "created_at": item.created_at,
+            "createdAt": _timestamp(item.created_at),
+            "created_at": _timestamp(item.created_at),
         }
         for item in notifications
     ]

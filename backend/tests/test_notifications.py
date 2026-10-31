@@ -83,3 +83,52 @@ def test_authenticated_user_can_list_notifications(client, seeded):
     )
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+
+def test_expiry_notification_ignores_zero_quantity_batch(client, seeded, db):
+    """Batches with 0 quantity must not generate expiry notifications."""
+    batch = db.get(Batch, 101)
+    assert batch is not None
+    batch.quantity = 0
+    batch.expiry_date = store_today()
+    db.commit()
+
+    created = create_expiry_notifications(db, today=store_today())
+    assert created == 0
+    notification = db.scalar(
+        select(Notification).where(
+            Notification.batch_id == 101,
+            Notification.notification_type == "expiry",
+        )
+    )
+    assert notification is None
+
+
+def test_multiple_removals_same_batch_create_separate_notifications(client, seeded, db):
+    """Multiple removals on the same batch must succeed and record notifications."""
+    r1 = client.post(
+        "/api/removals",
+        json={"batchId": 101, "qty": 1, "reason": "damaged"},
+        headers=auth("stock-tester", "Inventory Staff"),
+    )
+    assert r1.status_code == 201
+
+    r2 = client.post(
+        "/api/removals",
+        json={"batchId": 101, "qty": 1, "reason": "spilled"},
+        headers=auth("stock-tester", "Inventory Staff"),
+    )
+    assert r2.status_code == 201
+
+    notifications = db.scalars(
+        select(Notification)
+        .where(
+            Notification.batch_id == 101,
+            Notification.notification_type == "removal",
+        )
+        .order_by(Notification.notification_id.asc())
+    ).all()
+
+    assert len(notifications) == 2
+    assert notifications[0].removal_id == r1.json()["removalId"]
+    assert notifications[1].removal_id == r2.json()["removalId"]

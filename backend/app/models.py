@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -83,11 +84,14 @@ class Batch(Base):
 class Notification(Base):
     __tablename__ = "notifications"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_notifications_expiry",
             "store_id",
             "batch_id",
             "notification_type",
-            name="uq_notifications_store_batch_type",
+            unique=True,
+            postgresql_where=text("notification_type IN ('pre_expiry', 'expiry')"),
+            sqlite_where=text("notification_type IN ('pre_expiry', 'expiry')"),
         ),
         Index("ix_notifications_store_created", "store_id", "created_at"),
     )

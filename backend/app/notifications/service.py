@@ -5,7 +5,7 @@ import logging
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -39,6 +39,7 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
             .where(
                 Batch.expiry_date == expiry_date,
                 Batch.store_id == settings.store_id,
+                Batch.quantity > 0,
             )
         ).all()
 
@@ -66,8 +67,8 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
                             Notification.batch_id,
                             Notification.notification_type,
                         ],
-                        index_where=Notification.notification_type.in_(
-                            ["pre_expiry", "expiry"]
+                        index_where=text(
+                            "notification_type IN ('pre_expiry', 'expiry')"
                         ),
                     )
                     .returning(Notification.notification_id)
@@ -85,8 +86,8 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
                             Notification.batch_id,
                             Notification.notification_type,
                         ],
-                        index_where=Notification.notification_type.in_(
-                            ["pre_expiry", "expiry"]
+                        index_where=text(
+                            "notification_type IN ('pre_expiry', 'expiry')"
                         ),
                     )
                     .returning(Notification.notification_id)
