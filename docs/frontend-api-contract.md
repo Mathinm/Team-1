@@ -92,7 +92,7 @@ Rules:
 - **Sales**: 422 with code `INSUFFICIENT_STOCK` or `BATCH_EXPIRED` (FR-7).
 - **Restock**: the UI sends no expiry; the backend sets it from the product's shelf-life.
 
-<<<<<<< HEAD
+
 ## Sprint 2: dashboard and reports (issue #16)
 
 | Method & path | Who | Response |
@@ -117,7 +117,6 @@ Report `type` values and what each must contain (reference implementation:
 An empty range returns `rows: []`; the UI shows "No data for this period".
 PDF and CSV are generated in the browser from this JSON, so the backend only
 returns JSON (the SAD's `format=pdf|csv` parameter is optional).
-=======
 ## Batches behaviour (issue #6)
 
 - `POST /batches` (Admin, Manager, Inventory Staff): `{productId, supplierId, quantity, unit?, receivedAt, expiryDate}`
@@ -166,7 +165,6 @@ header `X-Device-Key`. Get a key with `python -m app.device.provision <name> <po
 - `eventId` (string, max 64) must be unique per device. Re-sending a stored event returns **409 `DUPLICATE_EVENT`** and changes nothing, so senders may retry safely after an outage.
 - Errors: 401 `INVALID_DEVICE_KEY`; 403 wrong kind of device for the endpoint; 400 malformed data (reading is not stored); sales also return 422 `INSUFFICIENT_STOCK` / `BATCH_EXPIRED`.
 - `alertRaised` is `true` when the reading raised an alert (see Sprint 2 — Alerts and refrigeration).
->>>>>>> main
 
 ## Demo mode
 
