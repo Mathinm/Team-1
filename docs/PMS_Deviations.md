@@ -55,7 +55,7 @@ This document formally records all deviations between the initial specifications
 - **Initial Specification:** SRS v1.0 specified that batches must record supplier information (FR-2), but did not provide an explicit requirement or endpoint for managing supplier master data on a fresh installation.
 - **Final Resolution:**
   - Fresh deployment testing identified that new installations could not receive inventory batches without pre-existing suppliers.
-  - Introduced the `Supplier` entity (`suppliers` table) and associated REST endpoints (`GET /api/suppliers`, `POST /api/suppliers` in `app/batches/router.py`).
+  - Introduced the `Supplier` entity (`suppliers` table) and associated REST endpoints (`GET /api/suppliers`, `POST /api/suppliers` in `backend/app/products/router.py`).
   - Restricted supplier creation to Manager and Admin roles with case-insensitive uniqueness validation.
 - **Impact:** Unblocked end-to-end fresh deployment workflows and strengthened referential data integrity.
 
@@ -92,9 +92,9 @@ This document formally records all deviations between the initial specifications
 ### Deviation 8: Stock Update SLA & Live Refresh Polling
 - **Initial Specification:** SRS NFR-1 specified that stock updates appear within 5 seconds for 95% of updates; Test Case Document TC-NFR-01 specified 3 seconds.
 - **Final Resolution:**
-  - The frontend implements automated periodic live polling every 3 seconds (`LIVE_REFRESH_MS = 3000` in `frontend/src/lib/liveRefresh.js`), matching the 3-second SLA.
+  - The frontend implements periodic live polling every 3 seconds (`LIVE_REFRESH_MS = 3000` in `frontend/src/lib/liveRefresh.js`). This polling interval is within the SRS target of 5 seconds; the test document separately specifies 3 seconds.
   - There is no manual refresh button or optimistic UI update mechanism; screens update strictly from authoritative backend responses.
-- **Impact:** Satisfies the strict 3-second SLA for multi-screen stock visibility without race conditions.
+- **Impact:** Provides periodic screen updates within the configured polling interval; this documents the implementation but does not claim a measured 3-second end-to-end SLA.
 
 ---
 
@@ -126,7 +126,7 @@ This document formally records all deviations between the initial specifications
 | Core Functional Requirements (FR-1..17, FR-19) | Complete specification | 100% Implemented & Verified | **Passed (`P`)** |
 | Reporting & Dashboard (FR-18) | Complete specification | Frontend Client / Demo Mode | **Accepted (`A`) (Deviation 9)** |
 | Security Requirements (SEC-1..5) | Complete specification | 100% Implemented & Verified | **Passed (`P`)** |
-| Attendance Tracking (STP FR-24..27) | Included in Test Doc v1.1 | Deferred / Out of Scope | **Documented Deviation (Approved in SAD 4.6)** |
+| Attendance Tracking (STP FR-24..27) | Included in Test Doc v1.1 | Deferred / Out of Scope | **Documented Deviation (noted in SAD Section 4.6)** |
 | Receipt Printing | Physical Hardware Device | JSON Response + Report PDF/CSV | **Documented Deviation (Deviation 3)** |
 | Supplier Master Data | Implicit in Batch receipt | Explicit REST CRUD Module | **Enhanced Architecture (Deviation 4)** |
 | Password Hashing | Salted Hashes (bcrypt) | Argon2id via `argon2-cffi` | **Enhanced Security (Deviation 5)** |
