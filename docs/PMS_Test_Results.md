@@ -28,13 +28,13 @@
 | `backend/tests/test_auth.py` | `app/auth/` | SEC-1, TC-AUTH-01..03 (Login, credential validation, generic errors) | 9 | **PASSED** |
 | `backend/tests/test_access.py` | `app/rbac.py` | SEC-2, TC-AUTH-04..06 (Role-based route & action gating across all endpoints) | 42 | **PASSED** |
 | `backend/tests/test_lockout.py` | `app/auth/` | SEC-3, TC-AUTH-07..09 (5-attempt account lockout, idle session timeout) | 13 | **PASSED** |
-| `backend/tests/test_users.py` | `app/auth/router.py` | SEC-4, TC-AUTH-10..12 (Admin user creation, deactivation, roles) | 15 | **PASSED** |
+| `backend/tests/test_users.py` | `app/users/` | SEC-4, TC-AUTH-10..12 (Admin user creation, deactivation, roles) | 15 | **PASSED** |
 | `backend/tests/test_reset.py` | `app/auth/reset.py` | SEC-5, TC-AUTH-13..14 (Password reset by token, SHA-256 hash, single-use) | 19 | **PASSED** |
 | `backend/tests/test_2fa.py` | `app/auth/otp.py` | NFR-10, TC-SEC-07, TC-NFR-13 (Manager & Admin 2FA email OTP, rate limits) | 23 | **PASSED** |
 | `backend/tests/test_passwords.py` | `app/auth/passwords.py` | NFR-9, TC-SEC-06, TC-NFR-12 (Argon2id salted password hashing) | 5 | **PASSED** |
 | `backend/tests/test_employee_data.py` | `app/crypto.py` | NFR-11, TC-SEC-08, TC-NFR-14 (Fernet encryption at rest for employee PII) | 13 | **PASSED** |
 | `backend/tests/test_products.py` | `app/products/` | FR-1, NFR-14, TC-PROD-01, TC-MD-01..05 (Product master data, store ID) | 18 | **PASSED** |
-| `backend/tests/test_suppliers.py` | `app/batches/router.py`, `app/models.py` | Issue #30, fresh install supplier CRUD & duplicate prevention | 13 | **PASSED** |
+| `backend/tests/test_suppliers.py` | `app/products/router.py`, `app/models.py` | Issue #30, fresh install supplier CRUD & duplicate prevention | 13 | **PASSED** |
 | `backend/tests/test_batches.py` | `app/batches/` | FR-2, FR-4, FR-5, FR-6, TC-STK-01..05 (Receive, restock, age, FEFO order) | 26 | **PASSED** |
 | `backend/tests/test_sales.py` | `app/sales/` | FR-3, FR-7, FR-8, TC-STK-04..07, TC-STK-10..14 (FEFO sale, block expired, CSV) | 31 | **PASSED** |
 | `backend/tests/test_stock.py` | `app/stock/` | FR-9, FR-13, TC-STK-08, TC-EXP-02 (Physical stock count, non-expiry removals) | 13 | **PASSED** |
@@ -44,7 +44,7 @@
 | `backend/tests/test_refrigeration.py` | `app/refrigeration/` | FR-15, FR-16, NFR-8, TC-SEN-01..02, TC-REF-01..04 (Unit failure, door alarms) | 22 | **PASSED** |
 | `backend/tests/test_device.py` | `app/device/` | FR-17, TC-SEN-03, TC-REF-05..07 (Device API, API key auth, event idempotency) | 19 | **PASSED** |
 | `backend/tests/test_offline_sync.py` | `simulators/` | FR-19, NFR-5, TC-REP-02, TC-REL-02, TC-NFR-07 (30-min outage buffer & sync) | 9 | **PASSED** |
-| `backend/tests/test_health.py` | `app/main.py` | NFR-4, NFR-13, TC-REL-01 (Database connectivity, container health endpoint) | 1 | **PASSED** |
+| `backend/tests/test_health.py` | `app/main.py` | NFR-4, TC-REL-01 (Docker health endpoint at `/api/health`) | 1 | **PASSED** |
 | `backend/tests/test_nfr_timing.py` | `app/products/router.py`, `app/notifications/service.py` | NFR-1, NFR-2, NFR-12 (Timing and performance benchmark verification) | 7 | **PASSED** |
 | `backend/tests/test_rtm.py` | `docs/PMS_RTM.md` | NFR-15, TC-RTM-01 (Automated Requirements Traceability Matrix verification) | 1 | **PASSED** |
 | **Total** | | | **343** | **100% PASSED** |
@@ -55,7 +55,7 @@
 
 | Test File | Area Tested | Test Cases Covered | Count | Status |
 |---|---|---|---|---|
-| `frontend/src/api/normalize.test.js` | Data Normalization | Field mapping across camelCase and snake_case API responses | 4 | **PASSED** |
+| `frontend/src/api/normalize.test.js` | Data Normalization | Maps backend alert and refrigeration data into the shape expected by frontend screens | 4 | **PASSED** |
 | `frontend/src/lib/liveRefresh.test.js` | Live Refresh Polling | NFR-1 (3-second polling interval, error handling, pause on blur) | 7 | **PASSED** |
 | `frontend/src/lib/validation.test.js` | UI Input Validation | Client-side input validation for products, batches, and sales | 11 | **PASSED** |
 | `frontend/src/api/mock/suppliers.test.js` | Supplier API Integration | Manager supplier creation, duplicate rejection (409), role gating (403) | 3 | **PASSED** |
