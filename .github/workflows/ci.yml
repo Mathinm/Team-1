@@ -39,3 +39,64 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npm run build
+
+  # NFR-4a / TC-REL-01 (#31): build the real stack, wait for every health check, then crash
+  # each container and check Docker brings it back without anyone touching it.
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start (waits until every service is healthy)
+        run: docker compose up -d --build --wait --wait-timeout 240
+      - name: Health through the backend and through nginx
+        run: |
+          curl -fsS http://localhost:8000/api/health
+          curl -fsS http://localhost:3000/ > /dev/null
+          curl -fsS http://localhost:3000/api/health
+      - name: TC-REL-01 crash each service, it must restart by itself
+        run: |
+          for svc in db backend frontend backup; do
+            id=$(docker compose ps -q "$svc")
+            before=$(docker inspect -f '{{.RestartCount}}' "$id")
+            # kill -9 the main process from the host = a real crash (exit 137).
+            # Not "docker kill"/"docker stop": Docker counts those as stopped on purpose.
+            sudo kill -9 "$(docker inspect -f '{{.State.Pid}}' "$id")"
+            ok=no
+            for i in $(seq 1 60); do
+              sleep 2
+              count=$(docker inspect -f '{{.RestartCount}}' "$id")
+              health=$(docker inspect -f '{{.State.Health.Status}}' "$id")
+              if [ "$count" -gt "$before" ] && [ "$health" = healthy ]; then ok=yes; break; fi
+            done
+            echo "$svc: restarts $before -> $count, health $health, back after ~$((i * 2)) s"
+            [ "$ok" = yes ] || exit 1
+          done
+          curl -fsS http://localhost:3000/api/health
+      - name: TC-REL-03 backup, wipe the database, restore, app works again
+        run: |
+          q() { docker compose exec -T db psql -U pms -d pms -tAc "$1"; }
+          users() { q "SELECT count(*) || ' users: ' || string_agg(user_id, ',' ORDER BY user_id) FROM users"; }
+          tables() { q "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"; }
+          before=$(users); echo "before:  $before, $(tables) tables"
+          docker compose exec -T backup sh /scripts/pms-backup.sh now
+          # shellcheck disable=SC2012  # our backup names are plain: pms_YYYY-MM-DD_HHMMSS.dump
+          file=$(basename "$(ls -t backups/pms_*.dump | head -1)")
+          q "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" > /dev/null
+          echo "wiped:   $(tables) tables"
+          [ "$(tables)" = 0 ]
+          docker compose stop backend
+          docker compose exec -T backup sh /scripts/pms-backup.sh restore "$file"
+          docker compose up -d --wait backend
+          after=$(users); echo "after:   $after, $(tables) tables"
+          [ "$before" = "$after" ]
+          curl -fsS -X POST http://localhost:3000/api/auth/login \
+            -H 'Content-Type: application/json' -d '{"userId":"cashier1","password":"cashier123"}' > /dev/null
+          echo "cashier1 can log in on the restored database"
+          docker compose exec -T backup date   # the backup clock runs on store time
+      - name: Show containers and logs (only when a step failed)
+        if: failure()
+        run: docker compose ps -a && docker compose logs --tail 100
+      - name: Stop
+        if: always()
+        run: docker compose down -v

@@ -10,3 +10,6 @@ pgdata/
 # simulator offline buffers
 simulators/*.jsonl
 simulators/__pycache__/
+
+# database backups (NFR-13): real data, never commit
+backups/
