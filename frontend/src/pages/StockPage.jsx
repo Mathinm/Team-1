@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { can } from "../config/roles.js";
 import { Banner, EmptyState, ExpiryBadge, Field, Loading, PageHeader, StockBadge } from "../components/ui.jsx";
 import { describeDaysToExpiry, formatDate, toISODate, toLocalDateTime, addDays } from "../lib/dates.js";
+import { useLiveRefresh } from "../lib/liveRefresh.js";
 import { validateBatch, validateRestock } from "../lib/validation.js";
 
 export default function StockPage() {
@@ -29,12 +30,21 @@ export default function StockPage() {
     }
   }, []);
 
-  const loadBatches = useCallback(async (id) => {
+  const selected = useRef(productId); // the product on screen right now
+  useEffect(() => {
+    selected.current = productId;
+  }, [productId]);
+
+  // quiet = a background refresh: no loading spinner, and a failure keeps the current list.
+  const loadBatches = useCallback(async (id, quiet = false) => {
     if (!id) return;
-    setBatches(null);
+    if (!quiet) setBatches(null);
     try {
-      setBatches(await api.fefo(id));
+      const list = await api.fefo(id);
+      if (quiet && selected.current !== id) return; // another product was picked meanwhile
+      setBatches(list);
     } catch (e) {
+      if (quiet) return;
       setError(e.message);
       setBatches([]);
     }
@@ -47,6 +57,13 @@ export default function StockPage() {
   useEffect(() => {
     loadBatches(productId);
   }, [productId, loadBatches]);
+
+  // NFR-1: stock on hand and the batch list follow sales and deliveries made elsewhere.
+  useLiveRefresh(async () => {
+    const ps = await api.listProducts();
+    setProducts(ps.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name)));
+    await loadBatches(selected.current, true);
+  });
 
   const product = products?.find((p) => String(p.productId) === productId);
 

@@ -3,6 +3,7 @@ import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { can } from "../config/roles.js";
 import { Banner, EmptyState, Loading, PageHeader, StockBadge, money } from "../components/ui.jsx";
+import { useLiveRefresh } from "../lib/liveRefresh.js";
 import ProductForm from "./ProductForm.jsx";
 
 export default function ProductsPage() {
@@ -26,6 +27,7 @@ export default function ProductsPage() {
   useEffect(() => {
     load();
   }, [load]);
+  useLiveRefresh(load); // NFR-1: stock changes from other screens and devices show within 5 s
 
   const visible = useMemo(() => {
     if (!products) return [];

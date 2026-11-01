@@ -25,13 +25,15 @@ router = APIRouter(prefix="/api", tags=["products"])
 managers = require_roles(ADMIN, MANAGER)
 
 
-def _product_out(db: Session, product: Product) -> ProductOut:
-    total = db.scalar(
-        select(func.coalesce(func.sum(Batch.quantity), 0)).where(
-            Batch.product_id == product.product_id,
-            Batch.store_id == product.store_id,
+def _product_out(db: Session, product: Product, total=None) -> ProductOut:
+    """`total` is the product's stock when the caller already has it (see list_products)."""
+    if total is None:
+        total = db.scalar(
+            select(func.coalesce(func.sum(Batch.quantity), 0)).where(
+                Batch.product_id == product.product_id,
+                Batch.store_id == product.store_id,
+            )
         )
-    )
     return ProductOut(
         productId=product.product_id,
         sku=product.sku,
@@ -85,12 +87,20 @@ def list_products(
     db: Session = Depends(get_db),
 ):
     """List this store's products, including inactive products and current stock."""
+    store_id = get_settings().store_id
     products = db.scalars(
-        select(Product)
-        .where(Product.store_id == get_settings().store_id)
-        .order_by(Product.product_id)
+        select(Product).where(Product.store_id == store_id).order_by(Product.product_id)
     )
-    return [_product_out(db, product) for product in products]
+    # NFR-1/NFR-3: every screen reloads this list every few seconds, so all stock totals come
+    # from ONE grouped query instead of one query per product.
+    stock = dict(
+        db.execute(
+            select(Batch.product_id, func.sum(Batch.quantity))
+            .where(Batch.store_id == store_id)
+            .group_by(Batch.product_id)
+        ).all()
+    )
+    return [_product_out(db, p, stock.get(p.product_id, 0)) for p in products]
 
 
 @router.post("/products", status_code=201, response_model=ProductOut)

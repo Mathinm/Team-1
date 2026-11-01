@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # low-stock check. Alerts must reach staff within 60 s (NFR-2), so keep this at 30 s or less.
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 10
+    # How often batches are checked for "expires today / tomorrow" (#11). An expiry alert waits
+    # up to this long, plus one scheduler round, before it is sent: keep the sum well under 60 s.
+    expiry_check_seconds: int = 20
     # Store time (HH:MM) of the daily projected low-stock check (FR-10).
     low_stock_check_time: str = "06:00"
     # A refrigeration door open longer than this raises an alarm (FR-16). Per-unit override

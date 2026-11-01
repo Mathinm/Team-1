@@ -143,7 +143,7 @@ def run_expiry_check() -> int:
 
 
 async def run_notification_scheduler(stop_event: asyncio.Event) -> None:
-    """Check expiry dates every 60 seconds until the application shuts down."""
+    """Check expiry dates every EXPIRY_CHECK_SECONDS (default 20) until shutdown (NFR-2)."""
     while not stop_event.is_set():
         try:
             created = await asyncio.to_thread(run_expiry_check)
@@ -153,6 +153,8 @@ async def run_notification_scheduler(stop_event: asyncio.Event) -> None:
             logger.exception("Expiry notification scheduler failed")
 
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=60)
+            await asyncio.wait_for(
+                stop_event.wait(), timeout=get_settings().expiry_check_seconds
+            )
         except TimeoutError:
             continue
