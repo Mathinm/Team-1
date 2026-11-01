@@ -132,8 +132,8 @@ To reconcile the difference in requirement numbering identified in SAD Section 4
 
 - **Total Functional Requirements (FRs):** 19 / 19 Traceable (18 Passed, 1 Accepted via Demo/Mock Mode)
 - **Total Security Requirements (SECs):** 5 / 5 Traceable (100% Passed)
-- **Total Non-Functional Requirements (NFRs):** 15 / 15 Traceable (11 Passed, 3 Accepted, 1 Not Yet Formally Verified)
+- **Total Non-Functional Requirements (NFRs):** 15 / 15 Traceable (12 Passed, 2 Accepted, 1 Not Yet Formally Verified)
 - **Total Requirements Traced:** 39 / 39 (100%)
 - **Automated Backend Test Cases:** 343 tests passing across 22 test suites (`backend/tests/`)
 - **Automated Frontend Test Cases:** 52 tests passing across 7 test suites (`frontend/src/`)
-- **Verification Status:** 34 requirements verified as Passed (`P`), 4 requirements Accepted (`A`), and 1 requirement pending formal operational trial (`NFR-6` Usability Trial, marked `N`).
+- **Verification Status:** 35 requirements are Passed (`P`), 3 are Accepted (`A`), and 1 is Not Yet Verified (`NFR-6` usability trial).
