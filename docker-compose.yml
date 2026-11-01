@@ -38,6 +38,7 @@ services:
       STORE_TIMEZONE: ${STORE_TIMEZONE:-Asia/Kolkata}
       LOW_STOCK_CHECK_TIME: ${LOW_STOCK_CHECK_TIME:-06:00}
       DOOR_OPEN_LIMIT_MINUTES: ${DOOR_OPEN_LIMIT_MINUTES:-5}
+      EXPIRY_CHECK_SECONDS: ${EXPIRY_CHECK_SECONDS:-20}
     depends_on:
       db:
         condition: service_healthy

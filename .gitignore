@@ -13,3 +13,6 @@ simulators/__pycache__/
 
 # database backups (NFR-13): real data, never commit
 backups/
+# load-test data (S2-10): contains device keys
+perf/seed.json
+locust-report.html
