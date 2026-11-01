@@ -3,7 +3,7 @@
 **Project:** Perishables Management System (PMS)  
 **Document Version:** 1.0  
 **Date:** November 1, 2026  
-**Status:** Approved & Verified  
+**Status:** Draft  
 **Standard References:** SRS v1.0 (`PMS_SRS.docx`), SAD v1.1 (`PMS_SAD.docx`), Test Case Document v1.1 (`PMS_Test_Cases_v1-1.pdf`)  
 **Requirement Identifier:** NFR-15 / TC-RTM-01  
 
@@ -16,7 +16,7 @@ The Requirements Traceability Matrix (RTM) establishes bidirectional traceabilit
 ### Status Legend
 - **P (Passed):** Requirement fully implemented and verified via automated test suites.
 - **A (Accepted):** Requirement verified through architectural review, inspection, configuration check, or operational trial.
-- **N (Not Yet Verified):** Requirement open or awaiting verification.
+- **N (Not Yet Verified):** Requirement open, deferred, or awaiting formal operational trial.
 
 ---
 
@@ -24,7 +24,7 @@ The Requirements Traceability Matrix (RTM) establishes bidirectional traceabilit
 
 | Req ID (SRS) | STP Ref (Test Doc) | Module / Area | Description | Issue Link | PR Link | Test Case(s) | Automated Test File & Implementation | Status |
 |---|---|---|---|---|---|---|---|---|
-| **FR-1** | FR-33 | Product Master Data | Add, edit, and deactivate products with standard fields (shelf life, temperature range, prices, threshold) | [#5](https://github.com/Mathinm/Team-1/issues/5) | [#24](https://github.com/Mathinm/Team-1/pull/24), [#27](https://github.com/Mathinm/Team-1/pull/27) | TC-PROD-01, TC-MD-01..05 | `backend/tests/test_products.py`<br>`frontend/src/api/mock/handlers.test.js` | **P** |
+| **FR-1** | FR-33 | Product Master Data | Add, edit, and deactivate products with standard fields (shelf life, temperature range, prices, threshold) | [#5](https://github.com/Mathinm/Team-1/issues/5) | [#27](https://github.com/Mathinm/Team-1/pull/27) | TC-PROD-01, TC-MD-01..05 | `backend/tests/test_products.py`<br>`frontend/src/api/mock/handlers.test.js` | **P** |
 | **FR-2** | FR-4 | Stock Tracking & Sales | Record received batches with item, category, supplier, quantity, units, received time, and expiry date | [#6](https://github.com/Mathinm/Team-1/issues/6) | [#28](https://github.com/Mathinm/Team-1/pull/28) | TC-STK-01, TC-STK-01..03 | `backend/tests/test_batches.py`<br>`frontend/src/api/mock/handlers.test.js` | **P** |
 | **FR-3** | FR-5 | Stock Tracking & Sales | Deduct stock automatically on POS sale in strict FEFO (First-Expired, First-Out) order | [#7](https://github.com/Mathinm/Team-1/issues/7) | [#25](https://github.com/Mathinm/Team-1/pull/25) | TC-STK-02, TC-STK-04..06 | `backend/tests/test_sales.py`<br>`frontend/src/api/mock/handlers.test.js` | **P** |
 | **FR-4** | FR-6 | Stock Tracking & Sales | Restock recorded batches to increment on-hand inventory quantity | [#6](https://github.com/Mathinm/Team-1/issues/6) | [#28](https://github.com/Mathinm/Team-1/pull/28) | TC-STK-03, TC-STK-07 | `backend/tests/test_batches.py`<br>`frontend/src/api/mock/handlers.test.js` | **P** |
@@ -41,7 +41,7 @@ The Requirements Traceability Matrix (RTM) establishes bidirectional traceabilit
 | **FR-15** | FR-17 | Refrigeration / Sensing | Monitor refrigeration unit operational state and trigger UNIT_FAILURE alarm on power loss | [#14](https://github.com/Mathinm/Team-1/issues/14) | [#36](https://github.com/Mathinm/Team-1/pull/36) | TC-SEN-01, TC-REF-01..02 | `backend/tests/test_refrigeration.py`<br>`frontend/src/api/mock/alerts.test.js` | **P** |
 | **FR-16** | FR-23 | Refrigeration / Sensing | Trigger DOOR_OPEN alarm when a refrigeration unit door remains open past configured limit | [#14](https://github.com/Mathinm/Team-1/issues/14) | [#36](https://github.com/Mathinm/Team-1/pull/36) | TC-SEN-02, TC-REF-03..04 | `backend/tests/test_refrigeration.py`<br>`frontend/src/api/mock/alerts.test.js` | **P** |
 | **FR-17** | FR-43 | Device API & Simulators | Authenticated device API with device keys and eventId idempotency for temperature, door, power | [#4](https://github.com/Mathinm/Team-1/issues/4) | [#25](https://github.com/Mathinm/Team-1/pull/25) | TC-SEN-03, TC-REF-05..07 | `backend/tests/test_device.py` | **P** |
-| **FR-18** | FR-29 | Reporting & Dashboard | Real-time dashboard and exportable CSV/PDF reports (waste, sales, sellers, suppliers, temp history) | [#16](https://github.com/Mathinm/Team-1/issues/16), [#17](https://github.com/Mathinm/Team-1/issues/17) | [#38](https://github.com/Mathinm/Team-1/pull/38), [#39](https://github.com/Mathinm/Team-1/pull/39) | TC-REP-01, TC-REP-01..05 | `frontend/src/api/mock/reports.test.js`<br>`frontend/src/pages/DashboardPage.jsx` | **P** |
+| **FR-18** | FR-29 | Reporting & Dashboard | Real-time dashboard and exportable CSV/PDF reports (waste, sales, sellers, suppliers, temp history) | [#16](https://github.com/Mathinm/Team-1/issues/16), [#17](https://github.com/Mathinm/Team-1/issues/17) | [#38](https://github.com/Mathinm/Team-1/pull/38), [#39](https://github.com/Mathinm/Team-1/pull/39) | TC-REP-01, TC-REP-01..05 | `frontend/src/api/mock/reports.test.js`<br>`frontend/src/pages/DashboardPage.jsx` | **A** |
 | **FR-19** | FR-30 | Offline Buffering & Sync | Offline event buffering during network outage and de-duplicated synchronization upon reconnection | [#15](https://github.com/Mathinm/Team-1/issues/15) | [#36](https://github.com/Mathinm/Team-1/pull/36) | TC-REP-02, TC-REP-06..07 | `backend/tests/test_offline_sync.py` | **P** |
 
 ---
@@ -62,21 +62,21 @@ The Requirements Traceability Matrix (RTM) establishes bidirectional traceabilit
 
 | Req ID (SRS) | STP Ref (Test Doc) | Quality Attribute | Target SLA / Specification | Issue Link | PR Link | Test Case(s) | Verification Evidence / Test Suite | Status |
 |---|---|---|---|---|---|---|---|---|
-| **NFR-1** | NFR-1 | Performance | Stock updates visible across screens within 5 s (95% target); single queries < 3 s | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-PERF-01, TC-NFR-01 | `perf/stock_latency.py`<br>`backend/tests/test_sales.py` | **P** |
+| **NFR-1** | NFR-1 | Performance | Stock updates visible across screens within 5 s (95% target); live refresh 3 s | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-PERF-01, TC-NFR-01 | `perf/stock_latency.py`<br>`frontend/src/lib/liveRefresh.test.js` | **P** |
 | **NFR-2** | NFR-3 | Performance | Alerts delivered to designated recipients within 60 s | [#13](https://github.com/Mathinm/Team-1/issues/13), [#19](https://github.com/Mathinm/Team-1/issues/19) | [#36](https://github.com/Mathinm/Team-1/pull/36), [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-PERF-02, TC-NFR-03 | `perf/alert_latency.py`<br>`backend/tests/test_alerts.py` | **P** |
 | **NFR-3** | NFR-5 | Scalability | Concurrency: supports 50 users, 5,000 batches, 100 sensors under load | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-PERF-03, TC-NFR-04 | `perf/locustfile.py`<br>`backend/app/load_seed.py` | **P** |
-| **NFR-4** | NFR-8 | Availability | 99.5% monthly availability; Docker restart policy `unless-stopped`; health checks | [#19](https://github.com/Mathinm/Team-1/issues/19), [#31](https://github.com/Mathinm/Team-1/issues/31) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-REL-01, TC-NFR-06 | `docker-compose.yml`<br>`backend/tests/test_health.py` | **P** |
+| **NFR-4** | NFR-8 | Availability | 99.5% monthly availability; Docker restart policy `unless-stopped`; health checks | [#19](https://github.com/Mathinm/Team-1/issues/19), [#31](https://github.com/Mathinm/Team-1/issues/31) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-REL-01, TC-NFR-06 | 99.5% not measured over sprint; accepted via `restart: unless-stopped` & health checks | **A** |
 | **NFR-5** | NFR-9 | Reliability | Zero data loss during 30-minute network outage; local buffer with de-duplicated sync | [#15](https://github.com/Mathinm/Team-1/issues/15), [#19](https://github.com/Mathinm/Team-1/issues/19) | [#36](https://github.com/Mathinm/Team-1/pull/36), [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-REL-02, TC-NFR-07 | `backend/tests/test_offline_sync.py`<br>`simulators/outage_test.py` | **P** |
-| **NFR-6** | NFR-10 | Usability | Staff able to perform routine operations with <= 30 min training; intuitive UI | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-UX-01, TC-NFR-09 | `docs/NFR-6-usability-trial.md`<br>`frontend/src/lib/validation.test.js` | **A** |
-| **NFR-7** | NFR-11 | Data Retention | Retention of temperature logs, stock movements, and audit records for at least 2 years | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-DATA-01, TC-NFR-10 | Database indexes & timestamp partitioning schema design | **A** |
+| **NFR-6** | NFR-10 | Usability | Staff able to perform routine operations with <= 30 min training; intuitive UI | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-UX-01, TC-NFR-09 | Formal usability trial with new external staff not executed (`docs/NFR-6-usability-trial.md`) | **N** |
+| **NFR-7** | NFR-11 | Data Retention | Retention of temperature logs, stock movements, and audit records for at least 2 years | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-DATA-01, TC-NFR-10 | No timestamp partitioning; verified by absence of record deletion or pruning | **A** |
 | **NFR-8** | NFR-12 | Compliance | Food safety compliance (FSSAI) for cold-chain refrigeration audit logs (0-8°C) | [#14](https://github.com/Mathinm/Team-1/issues/14), [#19](https://github.com/Mathinm/Team-1/issues/19) | [#36](https://github.com/Mathinm/Team-1/pull/36), [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-COMP-01, TC-NFR-11 | `docs/NFR-8-fssai-checklist.md`<br>`backend/tests/test_refrigeration.py` | **P** |
 | **NFR-9** | NFR-14 | Security | Passwords stored as salted cryptographic hashes (Argon2id implementation) | [#3](https://github.com/Mathinm/Team-1/issues/3), [#18](https://github.com/Mathinm/Team-1/issues/18) | [#26](https://github.com/Mathinm/Team-1/pull/26), [#35](https://github.com/Mathinm/Team-1/pull/35) | TC-SEC-06, TC-NFR-12 | `backend/tests/test_passwords.py` | **P** |
 | **NFR-10** | NFR-15 | Security | Two-factor authentication (2FA) enforced for Manager and Admin roles via email OTP | [#18](https://github.com/Mathinm/Team-1/issues/18) | [#35](https://github.com/Mathinm/Team-1/pull/35) | TC-SEC-07, TC-NFR-13 | `backend/tests/test_2fa.py` | **P** |
 | **NFR-11** | NFR-17 | Security | Sensitive employee data encrypted at rest (Fernet/AES-128-CBC) with Manager/Admin access | [#18](https://github.com/Mathinm/Team-1/issues/18) | [#35](https://github.com/Mathinm/Team-1/pull/35) | TC-SEC-08, TC-NFR-14 | `backend/tests/test_employee_data.py` | **P** |
 | **NFR-12** | NFR-20 | Performance | Removal alert delivered within 2 minutes of recording stock loss | [#11](https://github.com/Mathinm/Team-1/issues/11) | [#37](https://github.com/Mathinm/Team-1/pull/37) | TC-PERF-04, TC-NFR-05 | `backend/tests/test_notifications.py` | **P** |
 | **NFR-13** | NFR-21 | Recovery | Automated daily pg_dump backup with verified restore script in CI drill | [#19](https://github.com/Mathinm/Team-1/issues/19) | [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-REL-03, TC-NFR-08 | `ops/pms-backup.sh`<br>`.github/workflows/ci.yml` | **P** |
-| **NFR-14** | NFR-25 | Scalability | Store ID foreign key partition on all store data tables for multi-tenant scalability | [#5](https://github.com/Mathinm/Team-1/issues/5), [#19](https://github.com/Mathinm/Team-1/issues/19) | [#24](https://github.com/Mathinm/Team-1/pull/24), [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-SCAL-01, TC-NFR-15 | `backend/app/models.py`<br>`backend/tests/test_products.py` | **P** |
-| **NFR-15** | NFR-26 | Traceability | Every FR traces to an automated test case; RTM updated and verified via TC-RTM-01 | [#20](https://github.com/Mathinm/Team-1/issues/20) | Current PR | TC-RTM-01, TC-NFR-16 | `backend/tests/test_rtm.py`<br>`docs/PMS_RTM.md` | **P** |
+| **NFR-14** | NFR-25 | Scalability | Store ID foreign key partition on all store data tables for multi-tenant scalability | [#5](https://github.com/Mathinm/Team-1/issues/5), [#19](https://github.com/Mathinm/Team-1/issues/19) | [#27](https://github.com/Mathinm/Team-1/pull/27), [#41](https://github.com/Mathinm/Team-1/pull/41) | TC-SCAL-01, TC-NFR-15 | `backend/app/models.py`<br>`backend/tests/test_products.py` | **P** |
+| **NFR-15** | NFR-26 | Traceability | Every FR traces to an automated test case; RTM updated and verified via TC-RTM-01 | [#20](https://github.com/Mathinm/Team-1/issues/20) | [#42](https://github.com/Mathinm/Team-1/pull/42) | TC-RTM-01, TC-NFR-16 | `backend/tests/test_rtm.py`<br>`docs/PMS_RTM.md` | **P** |
 
 ---
 
@@ -130,10 +130,10 @@ To reconcile the difference in requirement numbering identified in SAD Section 4
 
 ## 6. Summary Traceability Metrics
 
-- **Total Functional Requirements (FRs):** 19 / 19 Traceable (100% Coverage)
-- **Total Security Requirements (SECs):** 5 / 5 Traceable (100% Coverage)
-- **Total Non-Functional Requirements (NFRs):** 15 / 15 Traceable (100% Coverage)
+- **Total Functional Requirements (FRs):** 19 / 19 Traceable (18 Passed, 1 Accepted via Demo/Mock Mode)
+- **Total Security Requirements (SECs):** 5 / 5 Traceable (100% Passed)
+- **Total Non-Functional Requirements (NFRs):** 15 / 15 Traceable (11 Passed, 3 Accepted, 1 Not Yet Formally Verified)
 - **Total Requirements Traced:** 39 / 39 (100%)
-- **Automated Backend Test Cases:** 333 tests passing across 21 test suites (`backend/tests/`)
-- **Automated Frontend Test Cases:** 45 tests passing across 6 test suites (`frontend/src/`)
-- **Verification Result:** All 19 Functional Requirements and 5 Security Requirements verified with status **Passed (P)**. All 15 Non-Functional Requirements verified with status **Passed (P)** or **Accepted (A)**. Zero unverified requirements remain.
+- **Automated Backend Test Cases:** 343 tests passing across 22 test suites (`backend/tests/`)
+- **Automated Frontend Test Cases:** 52 tests passing across 7 test suites (`frontend/src/`)
+- **Verification Status:** 34 requirements verified as Passed (`P`), 4 requirements Accepted (`A`), and 1 requirement pending formal operational trial (`NFR-6` Usability Trial, marked `N`).

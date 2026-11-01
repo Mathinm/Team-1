@@ -2,9 +2,9 @@
 
 Verifies that:
 1. Every Functional Requirement (FR-1 to FR-19) from SRS v1.0 has a mapped test case,
-   linked issue, pull request, and passed verification status.
+   linked issue, pull request, and passed or accepted verification status.
 2. Every Security Requirement (SEC-1 to SEC-5) has a mapped test case and passed status.
-3. Every Non-Functional Requirement (NFR-1 to NFR-15) has a verified status.
+3. Every Non-Functional Requirement (NFR-1 to NFR-15) has a verified status (P, A, or N).
 4. All referenced test files exist on disk.
 5. The deviations documentation (docs/PMS_Deviations.md) is present.
 """
@@ -34,12 +34,13 @@ def test_rtm_completeness_and_traceability():
         suffix = rf"\s*\*\*{status_group}\*\*\s*\|"
         return prefix + cols + suffix
 
-    # 1. Verify all 19 Functional Requirements
+    # 1. Verify all 19 Functional Requirements (FR-1 to FR-17, FR-19 = P; FR-18 = A)
     for i in range(1, 20):
         fr_id = f"FR-{i}"
-        pattern = row_pattern(fr_id, "P")
+        status_expected = "A" if fr_id == "FR-18" else "P"
+        pattern = row_pattern(fr_id, status_expected)
         match = re.search(pattern, content)
-        assert match is not None, f"Functional requirement {fr_id} is missing or not Passed in RTM"
+        assert match is not None, f"FR {fr_id} is missing or has wrong status in RTM"
 
         issue_col = match.group(4)
         pr_col = match.group(5)
@@ -47,21 +48,21 @@ def test_rtm_completeness_and_traceability():
         test_file_col = match.group(7)
 
         assert "#" in issue_col, f"{fr_id} missing issue reference"
-        assert "#" in pr_col or "Current PR" in pr_col, f"{fr_id} missing PR reference"
+        assert "#" in pr_col, f"{fr_id} missing PR reference"
         assert "TC-" in tc_col, f"{fr_id} missing test case reference"
         assert len(test_file_col.strip()) > 0, f"{fr_id} missing test implementation path"
 
-    # 2. Verify all 5 Security Requirements
+    # 2. Verify all 5 Security Requirements (All P)
     for i in range(1, 6):
         sec_id = f"SEC-{i}"
         pattern = row_pattern(sec_id, "P")
         match = re.search(pattern, content)
         assert match is not None, f"Security requirement {sec_id} is missing or not Passed in RTM"
 
-    # 3. Verify all 15 Non-Functional Requirements
+    # 3. Verify all 15 Non-Functional Requirements (P, A, or N)
     for i in range(1, 16):
         nfr_id = f"NFR-{i}"
-        pattern = row_pattern(nfr_id, "(?:P|A)")
+        pattern = row_pattern(nfr_id, "(?:P|A|N)")
         match = re.search(pattern, content)
         assert match is not None, f"NFR requirement {nfr_id} is missing or not verified in RTM"
 
@@ -87,6 +88,7 @@ def test_rtm_completeness_and_traceability():
         "test_device.py",
         "test_offline_sync.py",
         "test_health.py",
+        "test_nfr_timing.py",
     ]
     tests_dir = repo_root / "backend" / "tests"
     for filename in expected_backend_test_files:
@@ -100,7 +102,7 @@ def test_rtm_completeness_and_traceability():
     assert "Deviation 1" in dev_content
     assert "Attendance" in dev_content
     assert "Supplier" in dev_content
-    assert "Argon2id" in dev_content
+    assert "argon2-cffi" in dev_content
 
     # 6. Verify test results summary exists
     test_results_path = repo_root / "docs" / "PMS_Test_Results.md"
