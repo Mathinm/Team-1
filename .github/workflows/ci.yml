@@ -94,6 +94,32 @@ jobs:
             -H 'Content-Type: application/json' -d '{"userId":"cashier1","password":"cashier123"}' > /dev/null
           echo "cashier1 can log in on the restored database"
           docker compose exec -T backup date   # the backup clock runs on store time
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the performance test tools
+        run: pip install -r perf/requirements.txt
+      - name: Load test data (5,000 batches, 100 sensors, 50 users)
+        run: docker compose exec -T backend python -m app.load_seed --yes > perf/seed.json
+      - name: TC-PERF-01 stock changes on 2 screens within 5 s (100 sales)
+        run: python perf/stock_latency.py --base http://localhost:3000 --seed perf/seed.json
+      - name: TC-PERF-02 alerts reach staff within 60 s (20 alerts)
+        run: python perf/alert_latency.py --base http://localhost:3000 --seed perf/seed.json
+      - name: TC-PERF-03 Locust, 50 users + 100 sensors (3 min here, 15 min by hand), NFR-1 under load
+        run: |
+          locust -f perf/locustfile.py --host http://localhost:3000 --headless \
+            -u 51 -r 1 -t 3m --only-summary --html locust-report.html &
+          locust_pid=$!
+          sleep 70   # until all 50 people have logged in (one a second)
+          python perf/stock_latency.py --base http://localhost:3000 --seed perf/seed.json --count 60
+          wait "$locust_pid"
+      - name: Keep the Locust report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locust-report
+          path: locust-report.html
+          if-no-files-found: ignore
       - name: Show containers and logs (only when a step failed)
         if: failure()
         run: docker compose ps -a && docker compose logs --tail 100

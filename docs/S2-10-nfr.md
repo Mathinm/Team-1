@@ -9,6 +9,8 @@ Requirements (SRS v1.0): NFR-1, NFR-2, NFR-3, NFR-4a, NFR-6, NFR-8, NFR-13.
 | NFR-1 | Stock changes on all screens within 5 s (95%) | TC-PERF-01 | `frontend/src/lib/liveRefresh.js`, `perf/stock_latency.py` |
 | NFR-2 | Alerts reach staff within 60 s (95%) | TC-PERF-02 | `EXPIRY_CHECK_SECONDS`, `perf/alert_latency.py` |
 | NFR-3 | 50 users, 5,000 batches, 100 sensors, targets still met | TC-PERF-03 | `backend/app/load_seed.py`, `perf/locustfile.py` |
+| NFR-8 | FSSAI-aligned temperature-recording checklist | TC-COMP-01 | `docs/NFR-8-fssai-checklist.md` |
+| NFR-6 | Responsive UI; routine tasks after 30 min training | TC-UX-01 | `docs/NFR-6-usability-trial.md` |
 
 ## NFR-4a Restart policy and health checks (TC-REL-01)
 
@@ -186,3 +188,28 @@ on purpose (NFR-9). Spread over 50 s (`-r 1`, closer to a shift starting) a logi
 | 15 min, `-r 1` | 24,671 | 0 | 17 ms | 34 ms | 270 ms |
 
 Before handing in, run it once by hand for 15 minutes and keep `locust-report.html`.
+
+## NFR-8 FSSAI-aligned temperature recording (TC-COMP-01)
+
+Checklist: `docs/NFR-8-fssai-checklist.md`. 17 checks against FSSAI Schedule 4 Part II (5.1.7,
+5.1.8, 5.2.2, 5.2.5, 5.3.1.1, 8.1, 8.2), the FSSAI advisory of 15 Oct 2026, and common cold-chain
+practice, each with the PMS behaviour and the test that proves it.
+
+**Result: 11 met, 2 partly, 3 not met, 1 outside PMS.** Recording itself (every reading with unit,
+value and time; no gaps after outages; no edits or deletes; alerts within 60 s; kept
+indefinitely) meets the guidance. Gaps, with suggested fixes in the checklist: default upper limit
+8 °C (FSSAI uses 5 °C for high-risk food, a setting), no "action taken" note, no real export of
+temperature records (backend `/api/reports` missing), no review sign-off, no arrival
+temperature on deliveries.
+
+## NFR-6 Usability: responsive UI, routine tasks after 30 minutes of training (TC-UX-01)
+
+Trial pack: `docs/NFR-6-usability-trial.md` (preparation, 30-minute training plan, task cards,
+observation sheet, results table). Needs at least 2 (better 3) people new to the app.
+
+**Already checked by script:** every routine-task screen fits a phone (390 px) and a tablet
+(820 px) with no sideways scrolling, and a dry run on a phone-sized screen completed every task
+except "record a removal": the frontend has no removal screen yet, although the backend
+supports it. Three small tap targets (under 24 px) are noted, none used by the tasks.
+
+**Still to do (people):** run the trial and fill in the results table.
