@@ -53,16 +53,19 @@ def import_sales_csv(db: Session, raw: bytes, *, recorded_by: str) -> CsvResult:
         i = col.get(name)
         return row[i].strip() if i is not None and i < len(row) else ""
 
-    imported = 0
-    errors: list[CsvError] = []
-    rows = 0
+    # Read every data row first and enforce the limit BEFORE saving anything, so an over-long
+    # file is refused as a whole (nothing imported) and re-uploading it in parts never doubles.
+    data_rows: list[tuple[int, list[str]]] = []
     for row in reader:
         if not any(c.strip() for c in row):
             continue
-        rows += 1
-        if rows > MAX_ROWS:
+        if len(data_rows) >= MAX_ROWS:
             raise ApiError(400, "INVALID", f"The CSV has more than {MAX_ROWS} rows: split the file")
-        line = reader.line_num
+        data_rows.append((reader.line_num, row))
+
+    imported = 0
+    errors: list[CsvError] = []
+    for line, row in data_rows:
         try:
             record_sale(
                 db,

@@ -8,7 +8,7 @@ from app.sales.fefo import SaleResult
 
 class SaleIn(BaseModel):
     sku: str = Field(min_length=1, max_length=40)
-    quantity: Decimal
+    quantity: Decimal | str  # str is kept as typed so check_quantity() can reject '1_0'
     unit: str | None = Field(default=None, max_length=10)
     soldAt: datetime | None = None
 
