@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     # Every store record carries a store ID (NFR-14). One store for now.
     store_id: int = 1
+    store_name: str = "Main Store"
     # "Expires today" is judged on the store's calendar day, not the server's (UTC in Docker).
     store_timezone: str = "Asia/Kolkata"
 
