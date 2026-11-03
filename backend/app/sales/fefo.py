@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.alerts.service import refresh_after_change
+from app.alerts.service import refresh_after_change, resolve_alert
 from app.config import get_settings
 from app.errors import ApiError
 from app.markdowns.service import get_active_batch_markdown, record_markdown_sale
@@ -144,6 +144,9 @@ def record_sale(
         b.quantity -= take
         left -= take
         used.append(BatchUsed(b.batch_id, take, b.expiry_date))
+        if b.quantity <= 0:
+            resolve_alert(db, f"expiry:{b.batch_id}", "Batch sold out")
+            resolve_alert(db, f"pre_expiry:{b.batch_id}", "Batch sold out")
 
         # Check if batch has an active markdown (FR-14, TC-EXP-08)
         md = get_active_batch_markdown(db, b.batch_id)
