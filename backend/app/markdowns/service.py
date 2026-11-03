@@ -128,8 +128,10 @@ def apply_markdown_rules(db: Session, now: datetime | None = None) -> list[dict]
         for r in rules:
             if days_left > r.days_before_expiry:
                 continue
-            if r.product_id is not None and r.product_id == product.product_id:
-                matching_rules.append((3, r.discount_percent, r))
+            if r.product_id is not None:
+                # Product-scoped rules must not fall through to category matching.
+                if r.product_id == product.product_id:
+                    matching_rules.append((3, r.discount_percent, r))
             elif r.category and r.category.lower() == product.category.lower():
                 matching_rules.append((2, r.discount_percent, r))
             elif r.product_id is None and not r.category:
