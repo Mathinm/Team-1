@@ -30,6 +30,7 @@ from app.db import Base, SessionLocal, engine
 from app.device.auth import create_device, hash_key
 from app.models import Batch, Device, Product, Supplier, User
 from app.sales.fefo import store_today
+from app.stores import ensure_default_store
 
 PASSWORD = "LoadTest-2026"  # test accounts only
 SUPPLIER = "Load Test Farms"
@@ -61,6 +62,7 @@ def seed(products: int, batches_each: int, sensors: int, users: int) -> dict:
     Base.metadata.create_all(engine)
     today, now = store_today(), datetime.now(timezone.utc)
     with SessionLocal() as db:
+        ensure_default_store(db)
         supplier = db.scalar(select(Supplier).where(Supplier.name == SUPPLIER))
         if supplier is None:
             supplier = Supplier(name=SUPPLIER)

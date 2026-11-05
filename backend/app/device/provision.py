@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db import Base, SessionLocal, engine
 from app.device.auth import KINDS, create_device
+from app.stores import ensure_default_store
 
 
 def main(argv: list[str]) -> int:
@@ -20,6 +21,7 @@ def main(argv: list[str]) -> int:
         return 2
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
+        ensure_default_store(db)
         try:
             key = create_device(db, argv[0], argv[1])
         except IntegrityError:
