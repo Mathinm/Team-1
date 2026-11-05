@@ -95,7 +95,7 @@ def receive_batch(
     supplier = _find_supplier(db, body.supplierId)
     qty = _check_receivable(product, body.quantity, body.unit)
     received_at = to_utc(body.receivedAt)
-    if received_at > datetime.now(timezone.utc):
+    if received_at > datetime.now(timezone.utc) + timedelta(minutes=5):
         raise ApiError(400, "INVALID", "Received date cannot be in the future")
     if body.expiryDate < _received_day(received_at):
         raise ApiError(400, "INVALID", "Expiry date must be after received date")
