@@ -21,7 +21,7 @@ sensor sends nothing more.
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -47,6 +47,22 @@ def effective_limits(unit: RefrigerationUnit) -> tuple[int, float, float]:
     lo = s.unit_temp_min_c if unit.temp_min is None else unit.temp_min
     hi = s.unit_temp_max_c if unit.temp_max is None else unit.temp_max
     return door, lo, hi
+
+
+def canonical_unit_id(db: Session, raw: str) -> str:
+    """The unit's one true spelling: trims spaces and ignores letter case.
+
+    A sensor that sends "fridge-2" or " Fridge-2 " is Fridge-2, not a second, ghost fridge whose
+    failures would never show on the real one. The first spelling ever seen is kept.
+    """
+    name = raw.strip()
+    known = db.scalar(
+        select(RefrigerationUnit.unit_id).where(
+            RefrigerationUnit.store_id == get_settings().store_id,
+            func.lower(RefrigerationUnit.unit_id) == name.lower(),
+        )
+    )
+    return known or name
 
 
 def get_or_create_unit(db: Session, unit_id: str) -> RefrigerationUnit:
@@ -106,6 +122,25 @@ def check_open_doors(db: Session, now: datetime | None = None) -> int:
         )
     ).all()
     return sum(len(_check_door(db, u, now)) for u in units)
+
+
+def recheck_temperature(db: Session, unit: RefrigerationUnit, now: datetime | None = None) -> None:
+    """After a manager changes the safe range, judge the unit's latest temperature against it."""
+    if unit.temperature is None:
+        return
+    now = now or now_utc()
+    _, lo, hi = effective_limits(unit)
+    key = f"temperature:{unit.unit_id}"
+    if unit.temperature > hi or unit.temperature < lo:
+        raise_alert(
+            db, type=TEMPERATURE, key=key, severity="critical", unit_id=unit.unit_id,
+            message=(f"{unit.unit_id} temperature {unit.temperature:g} °C is outside "
+                     f"{lo:g} to {hi:g} °C"),
+            triggered_at=now,
+        )
+    else:
+        resolve_alert(db, key, f"Safe range changed: {unit.temperature:g} °C is now in range",
+                      resolved_at=now)
 
 
 # ------------------------------------------------------------------ readings

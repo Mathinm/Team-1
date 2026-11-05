@@ -18,7 +18,7 @@ from app.device.auth import device_of_kind
 from app.device.schemas import DeviceSaleIn, ReadingIn, ReadingOut, parse_reading_value
 from app.errors import ApiError
 from app.models import Device, Sale, SensorReading
-from app.refrigeration.service import apply_reading
+from app.refrigeration.service import apply_reading, canonical_unit_id
 from app.sales.fefo import record_sale, to_utc
 from app.sales.schemas import SaleOut, sale_out
 
@@ -67,6 +67,8 @@ def device_reading(
     """Temperature / door / power reading (FR-17). Stored, then checked for unit-failure,
     door-open and temperature alerts (FR-15, FR-16); `alertRaised` says if it raised any."""
     num, text = parse_reading_value(body.type, body.value)
+    if not body.unitId.strip():
+        raise ApiError(400, "INVALID", "unitId must not be blank")
     if db.scalar(select(SensorReading.reading_id).where(
             SensorReading.device_id == device.device_id, SensorReading.event_id == body.eventId)):
         raise _duplicate(body.eventId)
@@ -74,7 +76,7 @@ def device_reading(
         store_id=get_settings().store_id,
         device_id=device.device_id,
         event_id=body.eventId,
-        unit_id=body.unitId.strip(),
+        unit_id=canonical_unit_id(db, body.unitId),
         type=body.type,
         value_num=num,
         value_text=text,
