@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { asBackground } from "../api/background.js";
 import { api } from "../api/endpoints.js";
 import { USE_MOCK } from "../api/client.js";
 import { Banner, Loading, PageHeader } from "../components/ui.jsx";
@@ -39,14 +40,14 @@ export default function RefrigerationPage() {
 
   useEffect(() => {
     loadUnits();
-    const id = setInterval(loadUnits, REFRESH_MS);
+    const id = setInterval(() => asBackground(loadUnits), REFRESH_MS);
     return () => clearInterval(id);
   }, [loadUnits]);
 
   useEffect(() => {
     setReadings(null);
     loadReadings();
-    const id = setInterval(loadReadings, REFRESH_MS);
+    const id = setInterval(() => asBackground(loadReadings), REFRESH_MS);
     return () => clearInterval(id);
   }, [loadReadings]);
 

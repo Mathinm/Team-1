@@ -71,6 +71,11 @@ def update_user(user_id: str, body: UserUpdate, admin: CurrentUser = Depends(adm
     if user.user_id == admin.user_id and body.role not in (None, ADMIN):
         raise ApiError(400, "SELF_DEMOTION", "You cannot remove your own Admin role")
     changes = body.model_dump(exclude_unset=True)
+    # A field may be left out (kept as it is) but not sent as null: the columns cannot be empty.
+    nulls = sorted(field for field, value in changes.items() if value is None)
+    if nulls:
+        raise ApiError(400, "VALIDATION",
+                       f"{', '.join(nulls)} cannot be empty; leave a field out to keep it")
     for field, value in changes.items():
         setattr(user, field, value)
     db.commit()

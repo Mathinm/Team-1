@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { canOpen, menuFor } from "../config/roles.js";
+import { asBackground } from "../api/background.js";
 import { api } from "../api/endpoints.js";
 import { USE_MOCK } from "../api/client.js";
 
@@ -67,7 +68,7 @@ function useActiveAlertCount(enabled) {
         .then((list) => alive && setCount(list.length))
         .catch(() => {});
     load();
-    const id = setInterval(load, 15000);
+    const id = setInterval(() => asBackground(load), 15000);
     window.addEventListener(ALERTS_CHANGED, load); // refresh at once after an acknowledge
     return () => {
       alive = false;

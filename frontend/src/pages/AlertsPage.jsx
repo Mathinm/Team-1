@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { asBackground } from "../api/background.js";
 import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { can } from "../config/roles.js";
@@ -48,7 +49,7 @@ export default function AlertsPage() {
   useEffect(() => {
     setAlerts(null);
     load();
-    const id = setInterval(load, REFRESH_MS);
+    const id = setInterval(() => asBackground(load), REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
 

@@ -59,10 +59,12 @@ export default function StockPage() {
   }, [productId, loadBatches]);
 
   // NFR-1: stock on hand and the batch list follow sales and deliveries made elsewhere.
+  // Both requests start before the first await, so both are sent as background refreshes.
   useLiveRefresh(async () => {
+    const batches = loadBatches(selected.current, true);
     const ps = await api.listProducts();
     setProducts(ps.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name)));
-    await loadBatches(selected.current, true);
+    await batches;
   });
 
   const product = products?.find((p) => String(p.productId) === productId);
