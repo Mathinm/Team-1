@@ -5,6 +5,7 @@
 //              so the UI can be built and demoed before the backend endpoints exist.
 //              Turn on with VITE_USE_MOCK=true (see frontend/.env.development).
 
+import { isBackground } from "./background.js";
 import { mockRequest } from "./mock/handlers.js";
 
 export const USE_MOCK = import.meta.env?.VITE_USE_MOCK === "true";
@@ -75,6 +76,7 @@ function defaultMessage(status) {
  */
 export async function request(method, path, body) {
   const token = getToken();
+  const background = isBackground(); // read now: the flag is only set while the call starts
 
   if (USE_MOCK) {
     const res = await mockRequest(method, path, body, token);
@@ -88,6 +90,7 @@ export async function request(method, path, body) {
 
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (background) headers["X-Background-Refresh"] = "1"; // not activity: idle logout still runs
   let payload;
   if (body instanceof FormData) {
     payload = body;

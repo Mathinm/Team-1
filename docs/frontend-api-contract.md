@@ -5,7 +5,8 @@ these paths, field names and status codes so the screens work without changes.
 Items marked **(added)** are not in the SAD yet; the UI needs them.
 
 All paths are under `/api`. Every call except login sends
-`Authorization: Bearer <token>`. Errors use SAD 4.4:
+`Authorization: Bearer <token>`. Automatic screen refreshes also send `X-Background-Refresh: 1`, so they
+do not count as activity for idle logout (S3-4). Errors use SAD 4.4:
 
 ```json
 { "error": { "code": "INSUFFICIENT_STOCK", "message": "Insufficient stock: only 30 l available", "details": null } }

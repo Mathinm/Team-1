@@ -4,6 +4,7 @@
 // of one request (about 10-50 ms, see docs/S2-10-nfr.md): under 3.1 s, well inside 5 s.
 // backend/tests/test_nfr_timing.py reads this number, so changing it re-checks NFR-1.
 import { useEffect, useRef } from "react";
+import { asBackground } from "../api/background.js";
 
 export const LIVE_REFRESH_MS = 3000;
 
@@ -19,7 +20,7 @@ export function startLiveRefresh(load, { ms = LIVE_REFRESH_MS, doc = globalThis.
     if (running || hidden()) return;
     running = true;
     Promise.resolve()
-      .then(load)
+      .then(() => asBackground(load)) // an automatic reload, not a person: no idle-logout reset
       .catch(() => {}) // each screen shows its own errors; a failed refresh just tries again
       .finally(() => {
         running = false;
