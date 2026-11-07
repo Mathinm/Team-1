@@ -9,7 +9,19 @@ export const api = {
   login: (userId, password, otpCode) =>
     request("POST", "/auth/login", { userId, password, ...(otpCode ? { otpCode } : {}) }),
   logout: () => request("POST", "/auth/logout"),
+  // Password reset by email (SEC-5)
+  requestPasswordReset: (userId) => request("POST", "/auth/password-reset", { userId }),
+  confirmPasswordReset: (token, newPassword) =>
+    request("POST", "/auth/password-reset/confirm", { token, newPassword }),
   me: () => request("GET", "/auth/me"),
+
+  // Users (SEC-4): Admin only
+  listUsers: () => request("GET", "/users"),
+  createUser: (body) => request("POST", "/users", body),
+  updateUser: (userId, body) => request("PUT", `/users/${encodeURIComponent(userId)}`, body),
+  deactivateUser: (userId) => request("PATCH", `/users/${encodeURIComponent(userId)}/deactivate`),
+  activateUser: (userId) => request("PATCH", `/users/${encodeURIComponent(userId)}/activate`),
+  unlockUser: (userId) => request("PATCH", `/users/${encodeURIComponent(userId)}/unlock`),
 
   // Master data (FR-1)
   listProducts: () => request("GET", "/products"),

@@ -19,7 +19,6 @@ class UnitOut(BaseModel):
     openAlerts: int  # alerts about this unit that are not resolved
 
 
-
 class ReadingPoint(BaseModel):
     recordedAt: datetime
     value: float

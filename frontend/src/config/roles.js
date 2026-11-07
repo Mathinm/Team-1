@@ -19,6 +19,7 @@ export const MENU = [
   { path: "/alerts", label: "Alerts", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/refrigeration", label: "Refrigeration", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/reports", label: "Reports", roles: [ADMIN, MANAGER] },
+  { path: "/users", label: "Users", roles: [ADMIN] },
 ];
 
 // Actions inside screens.
@@ -28,7 +29,11 @@ export const PERMISSIONS = {
   receiveBatch: [ADMIN, MANAGER, STAFF],
   recordSale: [ADMIN, CASHIER],
   acknowledgeAlerts: [ADMIN, MANAGER],
+  manageUsers: [ADMIN], // SEC-4: user administration is Admin-only
 };
+
+/** Roles an Admin can assign on the Users screen (SEC-4). */
+export const USER_ROLES = [ADMIN, MANAGER, STAFF, CASHIER];
 
 export function can(role, permission) {
   return Boolean(role && PERMISSIONS[permission]?.includes(role));

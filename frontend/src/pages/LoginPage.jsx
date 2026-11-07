@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { canOpen, homePathFor } from "../config/roles.js";
 import { Banner, Field } from "../components/ui.jsx";
 import { USE_MOCK } from "../api/client.js";
 import { MOCK_USERS } from "../api/mock/db.js";
+import "./products-login.css";
 
 export default function LoginPage() {
   const { user, login, notice } = useAuth();
@@ -44,13 +45,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login">
-      <form className="card login__card" onSubmit={submit} noValidate>
-        <div className="login__brand">
-          <span className="topbar__brand">PMS</span>
-          <h1>Perishables Management System</h1>
-          <p className="muted">Sign in to continue</p>
+    <div className="login login-v2">
+      <aside className="login-v2__photo" aria-hidden="true">
+        <div className="login-v2__caption">
+          <span className="login-v2__logo">PMS</span>
+          <h2>Freshness deserves better management.</h2>
+          <p>Track inventory. Reduce waste. Keep every product moving.</p>
         </div>
+      </aside>
+      <div className="login-v2__side">
+      <form className="login__card login-v2__card" onSubmit={submit} noValidate>
+        <div className="login-v2__brand">
+          <span className="login-v2__mark" aria-hidden="true">🌿</span>
+          <span>Perishables Management System</span>
+        </div>
+        <h1 className="login-v2__title">Hello,<br />welcome back</h1>
+        <p className="muted login-v2__lead">Sign in to manage your store&apos;s fresh stock.</p>
 
         <Banner kind="info">{notice}</Banner>
         <Banner kind="error">{error}</Banner>
@@ -75,6 +85,9 @@ export default function LoginPage() {
         <button className="btn btn--primary btn--block" type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Log in"}
         </button>
+        <p className="login-v2__forgot">
+          <Link to="/forgot-password">Forgot your password?</Link>
+        </p>
 
         {USE_MOCK && (
           <details className="demo-users">
@@ -95,6 +108,7 @@ export default function LoginPage() {
           </details>
         )}
       </form>
+      </div>
     </div>
   );
 }

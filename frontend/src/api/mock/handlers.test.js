@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockRequest } from "./handlers.js";
 import { resetMockDb } from "./db.js";
 
@@ -103,5 +103,56 @@ describe("batches (FR-2, FR-5, FR-6)", () => {
     const res = await call("POST", "/restocks", { productId: 1, quantity: 10 }, t);
     expect(res.status).toBe(201);
     expect(res.body.newStock).toBe(47);
+  });
+});
+
+describe("users (SEC-4): Admin only", () => {
+  const NEW = { userId: "cash2", name: "Cashier Two", email: "cash2@example.com", role: "Cashier", password: "Cash2Pass!" };
+
+  it("an Admin adds a user who can then log in, and no password comes back", async () => {
+    const t = await tokenFor("admin", "admin123");
+    const res = await call("POST", "/users", NEW, t);
+    expect(res.status).toBe(201);
+    expect(res.body.password).toBeUndefined();
+    expect((await call("POST", "/auth/login", { userId: "cash2", password: "Cash2Pass!" })).status).toBe(200);
+  });
+
+  it("an Admin changes a role and deactivates a user (login refused)", async () => {
+    const t = await tokenFor("admin", "admin123");
+    expect((await call("PUT", "/users/staff1", { role: "Cashier" }, t)).body.role).toBe("Cashier");
+    expect((await call("PATCH", "/users/cashier1/deactivate", null, t)).status).toBe(200);
+    expect((await call("POST", "/auth/login", { userId: "cashier1", password: "cashier123" })).status).toBe(401);
+    expect((await call("PATCH", "/users/admin/deactivate", null, t)).status).toBe(400);
+  });
+
+  it.each([["manager1", "manager123"], ["staff1", "staff123"], ["cashier1", "cashier123"]])(
+    "%s gets 403 on every user endpoint",
+    async (userId, password) => {
+      const t = await tokenFor(userId, password);
+      expect((await call("GET", "/users", null, t)).status).toBe(403);
+      expect((await call("POST", "/users", NEW, t)).status).toBe(403);
+      expect((await call("PATCH", "/users/cashier1/deactivate", null, t)).status).toBe(403);
+    },
+  );
+});
+
+describe("password reset (SEC-5)", () => {
+  it("gives the same answer for unknown and real user IDs, and the link sets a new password", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    const unknown = await call("POST", "/auth/password-reset", { userId: "ghost99" });
+    const real = await call("POST", "/auth/password-reset", { userId: "staff1" });
+    expect(unknown.body.message).toBe(real.body.message);
+    const token = log.mock.calls.at(-1)[0].match(/token=(\S+)/)[1];
+    log.mockRestore();
+
+    expect((await call("POST", "/auth/password-reset/confirm", { token, newPassword: "NewPass123" })).status).toBe(200);
+    expect((await call("POST", "/auth/login", { userId: "staff1", password: "NewPass123" })).status).toBe(200);
+    // a link works only once
+    expect((await call("POST", "/auth/password-reset/confirm", { token, newPassword: "Other1234" })).status).toBe(400);
+  });
+
+  it("refuses a made-up link", async () => {
+    const res = await call("POST", "/auth/password-reset/confirm", { token: "nope", newPassword: "NewPass123" });
+    expect(res.status).toBe(400);
   });
 });
