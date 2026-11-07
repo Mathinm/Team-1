@@ -402,4 +402,3 @@ class Markdown(Base):
 
 
 """End of model definitions."""
-

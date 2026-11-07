@@ -21,7 +21,9 @@ DEMO = [
     ("TOM-01", "Tomato", "Vegetables", "kg", 30, [(12, 2), (25, 5)]),
     ("BAN-01", "Banana", "Fruits", "piece", 6, [(60, 4)]),
     ("MLK-01", "Milk 1L", "Dairy", "l", 28, [(8, -1), (30, 3)]),  # first batch already expired
-    ("BRD-01", "Bread Loaf", "Bakery", "piece", 40, [(7, -1)]),  # only expired stock
+    ("PAN-01", "Paneer", "Dairy", "kg", 360, [(10, 6)]),
+    ("BRD-01", "Bread Loaf", "Bakery", "piece", 40, [(15, 3), (7, -1)]),  # fresh + expired
+    ("SPN-01", "Spinach", "Vegetables", "kg", 45, [(10, 2)]),
 ]
 
 
