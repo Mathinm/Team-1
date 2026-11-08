@@ -15,6 +15,7 @@ Builds on S1-1 (`docs/S1-1-auth.md`). Requirements (SRS v1.0): SEC-3, SEC-5, NFR
 **Idle logout**
 - `user_sessions.last_seen_at` is updated on requests (at most every 30 s per session).
 - A session with no request for `IDLE_TIMEOUT_MINUTES` (default 30) is ended on its next use and answers 401 "Your session has ended. Please log in again."; the frontend then shows the login page. Coming back later does not reopen it.
+- Only a person's requests count as activity (S3-4, issue #46). A screen reloading itself sends `X-Background-Refresh: 1`; the backend still checks that request for idle logout but does not count it as activity, so a screen left open still logs out after the idle time. In the frontend, automatic reloads go through `asBackground()` (`frontend/src/api/background.js`).
 
 | Method | Path | Who | Notes |
 |---|---|---|---|

@@ -55,9 +55,15 @@ def create_access_token(
 
 
 def get_current_session(
-    authorization: str | None = Header(default=None), db: Session = Depends(get_db)
+    authorization: str | None = Header(default=None),
+    x_background_refresh: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ) -> UserSession:
-    """401 unless the token is valid AND its session is still open AND the user is active."""
+    """401 unless the token is valid AND its session is still open AND the user is active.
+
+    A request sent with `X-Background-Refresh: 1` (a screen reloading itself, not a person) is
+    still checked for idle logout, but does not count as activity (SEC-3, S3-4).
+    """
     secret = get_settings().jwt_secret
     scheme, _, token = (authorization or "").partition(" ")
     if not secret or scheme.lower() != "bearer" or not token:
@@ -81,7 +87,7 @@ def get_current_session(
         db.commit()
         log.info("session ended after inactivity: user=%s", user.user_id)
         raise ApiError(401, "UNAUTHORIZED", SESSION_ENDED)
-    if touch(session, now):
+    if x_background_refresh != "1" and touch(session, now):
         db.commit()
     return session
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { asBackground } from "../api/background.js";
 import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { canOpen } from "../config/roles.js";
@@ -26,7 +27,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, REFRESH_MS);
+    const id = setInterval(() => asBackground(load), REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
 

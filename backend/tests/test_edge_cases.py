@@ -264,7 +264,6 @@ def minutes_since_last_seen(db) -> float:
     return (now_utc() - seen).total_seconds() / 60
 
 
-@gap("S3-4", "an automatic refresh counts as activity, so the session never goes idle")
 def test_edge_8_background_refresh_does_not_keep_the_session_alive(client, db):
     headers = auth("staff1", "Inventory Staff")
     go_idle(db, get_settings().idle_timeout_minutes - 1)  # one minute from being logged out
@@ -287,7 +286,6 @@ def test_edge_8_idle_session_is_ended_even_for_a_background_refresh(client, db):
 
 
 # ============================================ 9. user edit with null
-@gap("S3-4", "editing a user with null gives a 500 server error")
 @pytest.mark.parametrize("field", ["name", "role", "email"])
 def test_edge_9_user_edit_with_null_is_400_not_500(client, seeded, field):
     make_user("bob", "Cashier")
