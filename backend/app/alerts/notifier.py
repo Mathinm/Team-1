@@ -38,6 +38,7 @@ class Notifier(Protocol):
     def send(self, recipient: str, subject: str, body: str) -> None:
         """Deliver one message. Raise any exception if it could not be delivered."""
 
+
 class EmailNotifier:
     """Sends through the shared app.notify.send_email (SMTP, or the log when SMTP is not set)."""
 
@@ -46,6 +47,7 @@ class EmailNotifier:
 
 
 _notifier: Notifier = EmailNotifier()
+
 
 def get_notifier() -> Notifier:
     return _notifier

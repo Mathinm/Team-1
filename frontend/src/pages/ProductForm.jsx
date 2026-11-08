@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api } from "../api/endpoints.js";
-import { Banner, Field } from "../components/ui.jsx";
+import { Banner, Field, money } from "../components/ui.jsx";
+import ProductThumb from "../components/ProductThumb.jsx";
+import "./products-login.css";
 import {
   CATEGORIES,
   DEFAULT_LOW_STOCK_THRESHOLD,
@@ -61,9 +63,23 @@ export default function ProductForm({ product, onCancel, onSaved }) {
   }
 
   return (
-    <form className="card form" onSubmit={submit} noValidate>
+    <form className="card form pform" onSubmit={submit} noValidate>
       <h2>{isNew ? "Add product" : `Edit ${product.name}`}</h2>
       <Banner kind="error">{error}</Banner>
+
+      <div className="pform__body">
+      <aside className="pform__preview" aria-label="Preview">
+        <p className="pform__preview-title">Preview</p>
+        <ProductThumb name={form.name} sku={form.sku} category={form.category} size="lg" />
+        <strong className="pform__preview-name">{form.name.trim() || "New product"}</strong>
+        <span className="muted small">{form.sku.trim() || "SKU"}</span>
+        <dl>
+          <div><dt>Category</dt><dd>{form.category || "–"}</dd></div>
+          <div><dt>Selling price</dt><dd>{form.sellingPrice !== "" ? `${money(form.sellingPrice)} / ${form.unit}` : "–"}</dd></div>
+          <div><dt>Shelf-life</dt><dd>{form.shelfLifeDays ? `${form.shelfLifeDays} days` : "–"}</dd></div>
+          <div><dt>Storage</dt><dd>{form.storageType || "–"}{form.tempMin !== "" && form.tempMax !== "" ? ` · ${form.tempMin}–${form.tempMax} °C` : ""}</dd></div>
+        </dl>
+      </aside>
 
       <div className="grid">
         <Field label="Name" error={err("name")} id="p-name">
@@ -107,6 +123,7 @@ export default function ProductForm({ product, onCancel, onSaved }) {
         <Field label="Low-stock threshold" error={err("lowStockThreshold")} hint="Default 10 units" id="p-thr">
           <input id="p-thr" type="number" min="0" step="1" value={form.lowStockThreshold} onChange={set("lowStockThreshold")} />
         </Field>
+      </div>
       </div>
 
       <div className="form__actions">

@@ -29,15 +29,27 @@ const fail = (status, code, message) => {
 
 // ---------- auth ----------
 
+/** Accounts in the mock store (the demo users, plus any added on the Users screen). */
+function usersOf(db) {
+  if (!db.users) {
+    db.users = MOCK_USERS.map((u) => ({
+      ...u, email: `${u.userId}@example.com`, active: true, locked: false, storeId: 1,
+    }));
+  }
+  return db.users;
+}
+
 function userFromToken(token) {
   if (!token?.startsWith("mock.")) return null;
   const userId = token.slice(5);
-  return MOCK_USERS.find((u) => u.userId === userId) ?? null;
+  return usersOf(getDb()).find((u) => u.userId === userId && u.active) ?? null;
 }
 
 function login({ userId, password } = {}) {
   if (!userId || !password) fail(400, "MISSING_FIELD", "User ID and password are required");
-  const user = MOCK_USERS.find((u) => u.userId === userId && u.password === password);
+  const user = usersOf(getDb()).find(
+    (u) => u.userId === userId && u.password === password && u.active,
+  );
   // Same message for unknown user and wrong password (SAD 4.3).
   if (!user) fail(401, "INVALID_CREDENTIALS", "Invalid user ID or password");
   return {
@@ -140,12 +152,91 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
   };
 }
 
+// ---------- password reset (SEC-5) ----------
+// Mock mode has no email: the link is printed to the browser console instead.
+
+const RESET_SENT = "If that user ID exists, a reset link has been sent to its registered email.";
+const RESET_INVALID = "This reset link is invalid or has expired. Ask for a new one.";
+
+function requestReset(db, { userId } = {}, now) {
+  const user = usersOf(db).find((u) => u.userId === String(userId ?? "").trim() && u.active);
+  if (user) {
+    const token = `demo-${Math.random().toString(36).slice(2, 12)}`;
+    db.resets = [...(db.resets ?? []).filter((r) => r.userId !== user.userId),
+      { token, userId: user.userId, expires: now.getTime() + 30 * 60 * 1000 }];
+    console.info(`[mock email to ${user.email}] Reset link: /reset-password?token=${token}`);
+  }
+  return { message: RESET_SENT };
+}
+
+function confirmReset(db, { token, newPassword } = {}, now) {
+  if ((newPassword ?? "").length < 8) fail(400, "INVALID", "Password must be at least 8 characters");
+  const reset = (db.resets ?? []).find((r) => r.token === token && r.expires > now.getTime());
+  const user = reset && usersOf(db).find((u) => u.userId === reset.userId && u.active);
+  if (!user) fail(400, "RESET_LINK_INVALID", RESET_INVALID);
+  user.password = newPassword;
+  db.resets = db.resets.filter((r) => r !== reset);
+  return { message: "Your password has been changed. Log in with the new password." };
+}
+
+// ---------- users (SEC-4): Admin only ----------
+
+const userOut = ({ password: _pw, ...u }) => u;
+
+function findUser(db, userId) {
+  const user = usersOf(db).find((u) => u.userId === userId);
+  if (!user) fail(404, "NOT_FOUND", "User not found");
+  return user;
+}
+
+function createUser(db, b = {}) {
+  const roles = [ADMIN, MANAGER, STAFF, CASHIER];
+  if (!/^[A-Za-z0-9_.-]{3,50}$/.test(b.userId ?? "")) fail(400, "INVALID", "User ID: 3-50 letters, numbers, _ . -");
+  if (!b.name?.trim()) fail(400, "INVALID", "Name is required");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email ?? "")) fail(400, "INVALID", "Enter a valid email");
+  if (!roles.includes(b.role)) fail(400, "INVALID", "Unknown role");
+  if ((b.password ?? "").length < 8) fail(400, "INVALID", "Password must be at least 8 characters");
+  if (usersOf(db).some((u) => u.userId === b.userId)) fail(409, "USER_EXISTS", "User ID already exists");
+  const user = {
+    userId: b.userId, name: b.name.trim(), email: b.email, role: b.role, password: b.password,
+    active: true, locked: false, storeId: 1,
+  };
+  db.users.push(user);
+  return userOut(user);
+}
+
 // ---------- routes ----------
 
 const routes = [
   ["POST", /^\/auth\/login$/, "public", (_m, body) => login(body)],
   ["POST", /^\/auth\/logout$/, ANY, () => null],
+  ["POST", /^\/auth\/password-reset$/, "public", (_m, body, _u, db, now) => requestReset(db, body, now)],
+  ["POST", /^\/auth\/password-reset\/confirm$/, "public", (_m, body, _u, db, now) => confirmReset(db, body, now)],
   ["GET", /^\/auth\/me$/, ANY, (_m, _b, user) => ({ userId: user.userId, name: user.name, role: user.role })],
+
+  ["GET", /^\/users$/, [ADMIN], (_m, _b, _u, db) => usersOf(db).map(userOut)],
+  ["POST", /^\/users$/, [ADMIN], (_m, body, _u, db) => createUser(db, body)],
+  ["PUT", /^\/users\/([A-Za-z0-9_.-]+)$/, [ADMIN], ([, id], b = {}, admin, db) => {
+    const user = findUser(db, id);
+    if (b.role !== undefined && b.role !== user.role) {
+      if (user.userId === admin.userId) fail(400, "SELF_DEMOTION", "You cannot remove your own Admin role");
+      user.role = b.role;
+    }
+    if (b.name !== undefined) user.name = String(b.name).trim() || user.name;
+    if (b.email !== undefined) user.email = b.email;
+    return userOut(user);
+  }],
+  ["PATCH", /^\/users\/([A-Za-z0-9_.-]+)\/(deactivate|activate)$/, [ADMIN], ([, id, action], _b, admin, db) => {
+    const user = findUser(db, id);
+    if (action === "deactivate" && user.userId === admin.userId)
+      fail(400, "SELF_DEACTIVATION", "You cannot deactivate your own account");
+    user.active = action === "activate";
+    return userOut(user);
+  }],
+  ["PATCH", /^\/users\/([A-Za-z0-9_.-]+)\/unlock$/, [ADMIN], ([, id], _b, _u, db) => {
+    findUser(db, id).locked = false;
+    return userOut(findUser(db, id));
+  }],
 
   ["GET", /^\/suppliers$/, ANY, (_m, _b, _u, db) => db.suppliers],
   ["POST", /^\/suppliers$/, [ADMIN, MANAGER], (_m, body, _u, db) => {
@@ -386,7 +477,7 @@ function deviceReading(db, { unitId, type, value }, now) {
 
 const DELAY_MS = 150;
 // POST routes that create a resource answer 201 (login, CSV import answer 200).
-const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales"]);
+const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales", "/users"]);
 
 /** Mock transport: returns {status, body} like an HTTP response. */
 export async function mockRequest(method, path, body, token, now = new Date()) {

@@ -198,4 +198,3 @@ def create_stock_count(
         recordedBy=record.recorded_by,
         recordedAt=_timestamp(record.recorded_at),
     )
-
