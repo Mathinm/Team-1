@@ -15,6 +15,7 @@ from sqlalchemy import select
 from app.db import Base, SessionLocal, engine
 from app.models import Batch, Product, Supplier
 from app.sales.fefo import store_today
+from app.stores import ensure_default_store
 
 # sku, name, category, unit, price, [(quantity, days until expiry), ...]
 DEMO = [
@@ -31,6 +32,7 @@ def main() -> None:
     Base.metadata.create_all(engine)
     today, now = store_today(), datetime.now(timezone.utc)
     with SessionLocal() as db:
+        ensure_default_store(db)
         if db.get(Supplier, 1) is None:
             db.add(Supplier(supplier_id=1, name="Fresh Farms"))
             db.flush()

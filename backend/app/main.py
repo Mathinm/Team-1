@@ -22,6 +22,7 @@ from app.refrigeration.router import router as refrigeration_router
 from app.sales.router import router as sales_router
 from app.scheduler import Scheduler
 from app.stock.router import router as stock_router
+from app.stores import ensure_default_store
 from app.users.router import router as users_router
 
 logging.basicConfig(
@@ -34,6 +35,7 @@ logging.basicConfig(
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
+        ensure_default_store(db)  # before anything that carries a store_id
         seed_users(db)
 
     # Existing scheduler for alerts, low stock and refrigeration.

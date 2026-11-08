@@ -75,7 +75,8 @@ jobs:
           curl -fsS http://localhost:3000/api/health
       - name: TC-REL-03 backup, wipe the database, restore, app works again
         run: |
-          q() { docker compose exec -T db psql -U pms -d pms -tAc "$1"; }
+          # user and database come from the db container's own POSTGRES_* variables (.env)
+          q() { docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "$1"' sh "$1"; }
           users() { q "SELECT count(*) || ' users: ' || string_agg(user_id, ',' ORDER BY user_id) FROM users"; }
           tables() { q "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"; }
           before=$(users); echo "before:  $before, $(tables) tables"

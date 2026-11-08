@@ -39,10 +39,23 @@ def _now_col():
 
 
 # ---------------------------------------------------------- products (#5) and batches (#6)
+class Store(Base):
+    """One row per store (NFR-14). Every other table's store_id points here, so adding a second
+    store is one INSERT here: no schema change anywhere else."""
+
+    __tablename__ = "stores"
+    # Ids are chosen by us (settings.store_id), never generated: a generated id could collide
+    # with the explicit id 1 that the default store uses.
+    store_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    name: Mapped[str] = mapped_column(String(80))
+    timezone: Mapped[str] = mapped_column(String(40), default="Asia/Kolkata")
+    created_at: Mapped[datetime] = _now_col()
+
+
 class Supplier(Base):
     __tablename__ = "suppliers"
     supplier_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     name: Mapped[str] = mapped_column(String(120))
 
 
@@ -50,7 +63,7 @@ class Product(Base):
     __tablename__ = "products"
     __table_args__ = (UniqueConstraint("store_id", "sku"),)
     product_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     sku: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(120))
     category: Mapped[str] = mapped_column(String(40))
@@ -72,7 +85,7 @@ class Batch(Base):
         Index("ix_batches_product_expiry", "product_id", "expiry_date"),
     )
     batch_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"))
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.supplier_id"))
     quantity: Mapped[Decimal] = mapped_column(QTY)  # on hand now
@@ -97,7 +110,7 @@ class Notification(Base):
     )
 
     notification_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     batch_id: Mapped[int | None] = mapped_column(
         ForeignKey("batches.batch_id"), index=True, nullable=True
     )
@@ -118,7 +131,7 @@ class Sale(Base):
         UniqueConstraint("device_id", "event_id", name="uq_sales_device_event"),
     )
     sale_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"))
     sku: Mapped[str] = mapped_column(String(20))
     quantity: Mapped[Decimal] = mapped_column(QTY)
@@ -149,7 +162,7 @@ class Device(Base):
 
     __tablename__ = "devices"
     device_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     name: Mapped[str] = mapped_column(String(80), unique=True)
     kind: Mapped[str] = mapped_column(String(10))  # pos | sensor
     key_hash: Mapped[str] = mapped_column(String(64), unique=True)
@@ -164,7 +177,7 @@ class SensorReading(Base):
         Index("ix_readings_unit_time", "store_id", "unit_id", "recorded_at"),
     )
     reading_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.device_id"))
     event_id: Mapped[str] = mapped_column(String(64))
     unit_id: Mapped[str] = mapped_column(String(64))  # e.g. "Fridge-1"
@@ -190,7 +203,7 @@ class User(Base):
         ),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     user_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # login name
     # NFR-11: employee name and email are encrypted at rest (app/crypto.py); code sees plain text
     name: Mapped[str] = mapped_column(EncryptedString)
@@ -243,7 +256,7 @@ class StockCount(Base):
     __tablename__ = "stock_counts"
 
     stock_count_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
     system_quantity: Mapped[Decimal] = mapped_column(QTY)
     counted_quantity: Mapped[Decimal] = mapped_column(QTY)
@@ -257,7 +270,7 @@ class Removal(Base):
     __tablename__ = "removals"
 
     removal_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
     quantity: Mapped[Decimal] = mapped_column(QTY)
     reason: Mapped[str] = mapped_column(String(40))
@@ -286,7 +299,7 @@ class Alert(Base):
         Index("ix_alerts_store_status", "store_id", "status"),
     )
     alert_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     type: Mapped[str] = mapped_column(String(30))
     severity: Mapped[str] = mapped_column(String(10), default="warning")  # info|warning|critical
     message: Mapped[str] = mapped_column(String(255))
@@ -325,7 +338,7 @@ class RefrigerationUnit(Base):
     __tablename__ = "refrigeration_units"
     __table_args__ = (UniqueConstraint("store_id", "unit_id", name="uq_units_store_unit"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     unit_id: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(10), default="OK")  # OK | FAILED
     power: Mapped[str | None] = mapped_column(String(3), nullable=True)  # ON | OFF
@@ -357,7 +370,7 @@ class JobRun(Base):
     __tablename__ = "job_runs"
     __table_args__ = (UniqueConstraint("store_id", "job", name="uq_job_runs_store_job"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     job: Mapped[str] = mapped_column(String(40))
     last_run_on: Mapped[date] = mapped_column(Date)
 
@@ -366,7 +379,7 @@ class JobRun(Base):
 class MarkdownRule(Base):
     __tablename__ = "markdown_rules"
     rule_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     name: Mapped[str] = mapped_column(String(120), default="")
     product_id: Mapped[int | None] = mapped_column(
         ForeignKey("products.product_id"), nullable=True, index=True
@@ -386,7 +399,7 @@ class Markdown(Base):
         Index("ix_markdowns_store_product", "store_id", "product_id"),
     )
     markdown_id: Mapped[int] = mapped_column(primary_key=True)
-    store_id: Mapped[int] = mapped_column(Integer, default=1)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
     batch_id: Mapped[int] = mapped_column(ForeignKey("batches.batch_id"), index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), index=True)
     rule_id: Mapped[int | None] = mapped_column(
