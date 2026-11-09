@@ -1,6 +1,6 @@
 """Sales: FEFO deduction, expired-batch blocking, manual and CSV (FR-3, FR-7, FR-8)."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -256,3 +256,65 @@ def test_csv_rejects_binary_and_missing_file(client, seeded, cashier):
 def test_csv_role_check(client, seeded):
     assert upload(client, auth("m", "Manager"), "sku,quantity\nTOM-01,1\n").status_code == 403
     assert upload(client, {}, "sku,quantity\nTOM-01,1\n").status_code == 401
+
+
+# ---- S3-2: sale input hardening ----------------------------------------------------------
+def test_sale_time_in_the_future_is_rejected(client, seeded, cashier):
+    later = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    r = sell(client, cashier, sku="TOM-01", quantity=1, soldAt=later)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "INVALID"
+    assert stock(seeded, 1) == 37  # nothing deducted
+
+
+def test_sale_time_a_little_ahead_or_in_the_past_is_fine(client, seeded, cashier):
+    soon = (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()
+    assert sell(client, cashier, sku="TOM-01", quantity=1, soldAt=soon).status_code == 201
+    assert sell(client, cashier, sku="TOM-01", quantity=1, soldAt="2026-01-01").status_code == 201
+
+
+def test_quantity_typos_like_underscore_or_exponent_are_rejected(client, seeded, cashier):
+    for bad in ("1_0", "1e2", "0x10", "1,5", "--3"):
+        r = sell(client, cashier, sku="TOM-01", quantity=bad)
+        assert r.status_code == 400, bad
+    assert stock(seeded, 1) == 37
+    assert sell(client, cashier, sku="TOM-01", quantity="2.5").status_code == 201
+    assert sell(client, cashier, sku="TOM-01", quantity=3).status_code == 201
+
+
+def test_csv_future_date_and_underscore_quantity_are_row_errors(client, seeded, cashier):
+    future = (datetime.now(timezone.utc) + timedelta(days=3)).date().isoformat()
+    body = f"sku,quantity,soldAt\nTOM-01,1_0,\nTOM-01,1,{future}\nTOM-01,1,\n"
+    r = client.post("/api/sales/csv", files={"file": ("s.csv", body, "text/csv")}, headers=cashier)
+    out = r.json()
+    assert (out["imported"], out["failed"]) == (1, 2)
+    assert [e["line"] for e in out["errors"]] == [2, 3]
+
+
+# ---- S3-2 #1 and #3 ------------------------------------------------------------------
+def test_csv_over_the_row_limit_imports_nothing(client, seeded, cashier, monkeypatch):
+    monkeypatch.setattr("app.sales.csv_import.MAX_ROWS", 3)
+    body = "sku,quantity\n" + "TOM-01,1\n" * 4
+    r = client.post("/api/sales/csv", files={"file": ("s.csv", body, "text/csv")}, headers=cashier)
+    assert r.status_code == 400 and "split the file" in r.json()["error"]["message"]
+    assert stock(seeded, 1) == 37  # nothing was saved
+    exact = "sku,quantity\n" + "TOM-01,1\n" * 3  # exactly at the limit still works
+    r = client.post("/api/sales/csv", files={"file": ("s.csv", exact, "text/csv")}, headers=cashier)
+    assert r.json()["imported"] == 3
+
+
+def test_offline_sale_from_before_the_batch_expired_is_still_accepted(db, seeded):
+    from sqlalchemy import select as sel
+
+    from app.models import Batch
+    from app.sales.fefo import record_sale
+    b = db.scalars(sel(Batch).where(Batch.batch_id == 101)).one()
+    b.expiry_date = store_today() - timedelta(days=1)  # expired yesterday
+    db.commit()
+    # now: sold yesterday 18:00 store time (before expiry ended), arriving today
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).replace(hour=6)
+    res = record_sale(db, sku="TOM-01", quantity=1, sold_at=yesterday, source="device",
+                      recorded_by="device:t", event_id="late-1")
+    assert [u.batch_id for u in res.batches_used] == [101]
+    # the same sale dated now is still blocked from that expired batch
+    res2 = record_sale(db, sku="TOM-01", quantity=1, source="manual", recorded_by="c")
+    assert [u.batch_id for u in res2.batches_used] == [102]

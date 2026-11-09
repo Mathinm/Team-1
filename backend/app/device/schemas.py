@@ -14,9 +14,10 @@ TEMP_RANGE = (-60.0, 100.0)  # deg C; outside this the sensor is faulty or the v
 class DeviceSaleIn(BaseModel):
     eventId: str = Field(min_length=1, max_length=64)
     sku: str = Field(min_length=1, max_length=40)
-    quantity: Decimal
+    quantity: Decimal | str  # str is kept as typed so check_quantity() can reject '1_0'
     unit: str | None = Field(default=None, max_length=10)
     soldAt: datetime | None = None
+
 
 
 class ReadingIn(BaseModel):

@@ -296,3 +296,38 @@ def test_temperature_history_rules(client, db, sensor_key):
     assert readings(client, "Fridge-2", hours=169).status_code == 400
     assert readings(client, "Fridge-2", role=("staff1", "Inventory Staff")).status_code == 200
     assert readings(client, "Fridge-2", role=("cashier1", "Cashier")).status_code == 403
+
+
+# ---------------------------------------------------------------- S3-2: one fridge, one record
+def test_unit_id_is_case_and_space_insensitive(client, db, sensor_key):
+    send(client, sensor_key, "temperature", 4.0, unit="Fridge-2")
+    send(client, sensor_key, "temperature", 5.0, unit=" fridge-2 ")
+    send(client, sensor_key, "power", "OFF", unit="FRIDGE-2")
+    found = units(client)
+    assert list(found) == ["Fridge-2"]  # no ghost "fridge-2" unit
+    assert found["Fridge-2"]["status"] == "FAILED"
+    assert found["Fridge-2"]["temperature"] == 5.0
+    # the chart history includes the readings sent with the other spelling
+    r = client.get("/api/refrigeration/units/Fridge-2/readings",
+                   headers=auth("manager1", "Manager"))
+    assert [p["value"] for p in r.json()] == [4.0, 5.0]
+
+
+def test_blank_unit_id_is_rejected(client, db, sensor_key):
+    body = {"eventId": "blank-1", "unitId": "   ", "type": "temperature", "value": 4,
+            "recordedAt": now().isoformat()}
+    r = client.post("/api/device/readings", json=body, headers={"X-Device-Key": sensor_key})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "INVALID"
+    assert units(client) == {}
+
+
+def test_tightening_the_limit_alerts_on_the_current_temperature(client, db, sensor_key):
+    send(client, sensor_key, "temperature", 7.0, unit="Fridge-9")
+    assert alerts(client) == []
+    r = client.put("/api/refrigeration/units/Fridge-9", json={"tempMax": 5},
+                   headers=auth("manager1", "Manager"))
+    assert r.status_code == 200
+    assert [a["type"] for a in alerts(client)] == ["TEMPERATURE"]
+    client.put("/api/refrigeration/units/Fridge-9", json={"tempMax": 9},
+               headers=auth("manager1", "Manager"))
+    assert [a["status"] for a in alerts(client)] == ["resolved"]

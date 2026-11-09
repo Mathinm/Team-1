@@ -13,7 +13,7 @@ from app.errors import ApiError
 from app.models import Alert, RefrigerationUnit, SensorReading
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
 from app.refrigeration.schemas import ReadingPoint, UnitOut, UnitSettingsIn
-from app.refrigeration.service import effective_limits
+from app.refrigeration.service import effective_limits, recheck_temperature
 
 router = APIRouter(prefix="/api/refrigeration", tags=["refrigeration"])
 viewers = require_roles(ADMIN, MANAGER, STAFF)
@@ -80,6 +80,7 @@ def update_unit_settings(
     if lo >= hi:
         db.rollback()
         raise ApiError(400, "INVALID", "Minimum temperature must be below maximum")
+    recheck_temperature(db, unit)  # a tighter limit alerts now, not at the next reading
     db.commit()
     return _out(unit, _open_alert_counts(db).get(unit.unit_id, 0))
 

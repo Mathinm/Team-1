@@ -4,14 +4,16 @@ One sale = one database transaction (the caller commits). The eligible batches a
 (SELECT ... FOR UPDATE) so concurrent sales cannot oversell or break FEFO order (SAD 3.7).
 
 Rules, matching the frontend mock backend:
-  * A batch is sellable through its expiry date (inclusive), judged on the store's calendar day.
+  * A batch is sellable through its expiry date (inclusive), judged on the store's calendar day
+    of the sale itself (soldAt), so late-arriving offline sales are not refused after midnight.
   * Earliest expiry first; ties by batch id (older first).
   * Nothing sellable but stock exists  -> 422 BATCH_EXPIRED.
   * Quantity above sellable stock      -> 422 INSUFFICIENT_STOCK (nothing is deducted).
 """
 
+import re
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
@@ -26,6 +28,8 @@ from app.models import Batch, Product, Sale, SaleBatch
 
 MAX_QTY = Decimal("999999.999")
 UNITS_WHOLE_ONLY = {"piece"}
+CLOCK_SKEW = timedelta(minutes=5)  # a POS clock may run a little fast; more than this is junk
+_PLAIN_NUMBER = re.compile(r"[+]?(\d+(\.\d*)?|\.\d+)")
 
 
 @dataclass
@@ -64,7 +68,14 @@ def fmt_qty(q: Decimal) -> str:
 def check_quantity(value) -> Decimal:
     """Parse and validate a quantity (>0, at most 3 decimals). Raises 400."""
     try:
-        qty = value if isinstance(value, Decimal) else Decimal(str(value).strip())
+        if isinstance(value, Decimal):
+            qty = value
+        else:
+            text = str(value).strip()
+            # Decimal() also accepts "1_0" (= 10) and "1e2"; a typo must not become a sale.
+            if not _PLAIN_NUMBER.fullmatch(text):
+                raise ValueError(text)
+            qty = Decimal(text)
     except Exception:
         raise ApiError(400, "INVALID", f"Quantity must be a number (got '{value}')") from None
     if not qty.is_finite() or qty <= 0:
@@ -111,7 +122,13 @@ def record_sale(
         msg = f"{product.name} is sold by the {product.unit}: use a whole number"
         raise ApiError(400, "INVALID", msg)
 
-    today = store_today(now)
+    sold_at_utc = to_utc(sold_at) if sold_at else now
+    if sold_at_utc > now + CLOCK_SKEW:
+        raise ApiError(400, "INVALID", "Sale time cannot be in the future")
+
+    # Expiry is judged on the day the sale HAPPENED, not the day it was received: a POS sale
+    # made yesterday and sent after an outage still counts as made while the batch was valid.
+    today = store_today(sold_at_utc)
     # Lock every batch with stock for this product, in FEFO order (same order for every
     # caller, so concurrent sales queue up instead of deadlocking).
     batches = db.scalars(
@@ -167,7 +184,7 @@ def record_sale(
         unit=product.unit,
         unit_price=avg_unit_price,
         amount=amount,
-        sold_at=to_utc(sold_at) if sold_at else now,
+        sold_at=sold_at_utc,
         source=source,
         recorded_by=recorded_by,
         device_id=device_id,
