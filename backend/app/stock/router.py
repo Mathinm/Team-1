@@ -171,6 +171,9 @@ def create_stock_count(
     variance = counted - system_qty
 
     batch.quantity = counted
+    if batch.quantity <= 0:
+        resolve_alert(db, f"expiry:{batch.batch_id}", "Batch emptied by stock count")
+        resolve_alert(db, f"pre_expiry:{batch.batch_id}", "Batch emptied by stock count")
     record = StockCount(
         store_id=get_settings().store_id,
         batch_id=batch.batch_id,

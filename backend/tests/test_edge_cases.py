@@ -166,7 +166,6 @@ def new_batch(received_at: str, expiry: str) -> dict:
             "receivedAt": received_at, "expiryDate": expiry}
 
 
-@gap("S3-3", "a batch received in the future is accepted")
 def test_edge_5_batch_received_in_the_future_is_refused(client, seeded):
     r = client.post("/api/batches", headers=auth("staff9", "Inventory Staff"),
                     json=new_batch("2030-01-01T10:00:00+05:30", "2030-01-05"))
@@ -187,7 +186,6 @@ def products_marked_down(db) -> set[int]:
     return set(db.scalars(select(Markdown.product_id)).all())
 
 
-@gap("S3-3", "a discount rule for one product also discounts its whole category")
 def test_edge_6_rule_with_product_and_category_applies_to_that_product_only(client, seeded):
     mgr = auth("mgr9", "Manager")
     r = client.post("/api/markdown-rules", headers=mgr, json={
@@ -223,7 +221,6 @@ def expiry_alert_status(db) -> str:
     return db.scalar(select(Alert.status).where(Alert.type == "EXPIRY"))
 
 
-@gap("S3-3", "a sale that empties a batch leaves its expiry alert open")
 def test_edge_7_expiry_alert_closes_when_a_sale_empties_the_batch(client, seeded, cashier):
     expiry_alert_for_batch_expiring_today(seeded)
     r = client.post("/api/sales", headers=cashier, json={"sku": "TOM-01", "quantity": 2})
@@ -231,7 +228,6 @@ def test_edge_7_expiry_alert_closes_when_a_sale_empties_the_batch(client, seeded
     assert expiry_alert_status(seeded) == "resolved"
 
 
-@gap("S3-3", "a stock count that empties a batch leaves its expiry alert open")
 def test_edge_7_expiry_alert_closes_when_a_stock_count_empties_the_batch(client, seeded):
     expiry_alert_for_batch_expiring_today(seeded)
     r = client.post("/api/stock-counts", headers=auth("staff9", "Inventory Staff"),
