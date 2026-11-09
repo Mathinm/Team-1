@@ -152,6 +152,106 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
   };
 }
 
+// ---------- removals (FR-13) and stock counts (FR-9) ----------
+
+function batchById(db, id) {
+  const batch = db.batches.find((b) => b.batchId === Number(id));
+  if (!batch) fail(404, "NOT_FOUND", "Unknown batch");
+  return batch;
+}
+
+function checkReason(value, max) {
+  const reason = String(value ?? "").trim();
+  if (!reason || reason.length > max) fail(400, "VALIDATION", `reason must contain 1 to ${max} characters`);
+  return reason;
+}
+
+/** Same rules as the backend: number, at most 3 decimals, whole pieces for "piece" units. */
+function checkQty(value, product, { allowZero }) {
+  const qty = Number(value);
+  if (value === "" || value === null || value === undefined || !Number.isFinite(qty))
+    fail(400, "INVALID", `Quantity must be a number (got '${value}')`);
+  if (qty < 0 || (qty === 0 && !allowZero)) fail(400, "INVALID", "Quantity must be greater than 0");
+  if (round(qty) !== qty) fail(400, "INVALID", "Quantity can have at most 3 decimal places");
+  if (qty > 0 && product.unit === "piece" && !Number.isInteger(qty))
+    fail(400, "INVALID", `${product.name} requires a whole-number quantity`);
+  return qty;
+}
+
+function recordRemoval(db, { batchId, qty: rawQty, reason: rawReason } = {}, user, now) {
+  const reason = checkReason(rawReason, 40);
+  const batch = batchById(db, batchId);
+  const product = productById(db, batch.productId);
+  const qty = checkQty(rawQty, product, { allowZero: false });
+  if (qty > batch.quantity)
+    fail(422, "INSUFFICIENT_STOCK", `Insufficient stock: only ${batch.quantity} available in this batch`);
+
+  batch.quantity = round(batch.quantity - qty);
+  const removal = {
+    removalId: db.nextIds.removal++,
+    batchId: batch.batchId,
+    productId: product.productId,
+    supplierId: batch.supplierId,
+    quantity: qty,
+    unit: product.unit,
+    reason,
+    worker: user.userId,
+    removedAt: now.toISOString(),
+    value: round(qty * product.costPrice),
+  };
+  db.removals.push(removal);
+  raise(db, now, {
+    type: "removal",
+    severity: "info",
+    message: `${qty} ${product.unit} ${product.name} removed (${reason}) by ${user.userId}`,
+    productId: product.productId,
+  });
+  return {
+    removalId: removal.removalId,
+    batchId: batch.batchId,
+    qty,
+    reason,
+    recordedBy: user.userId,
+    recordedAt: removal.removedAt,
+    remainingQuantity: batch.quantity,
+  };
+}
+
+function recordStockCount(db, { batchId, countedQuantity, reason: rawReason } = {}, user, now) {
+  const reason = checkReason(rawReason, 255);
+  const batch = batchById(db, batchId);
+  const product = productById(db, batch.productId);
+  const counted = checkQty(countedQuantity, product, { allowZero: true });
+
+  const system = batch.quantity;
+  const variance = round(counted - system);
+  batch.quantity = counted;
+  db.stockCounts ??= [];
+  db.nextIds.stockCount ??= 1;
+  const record = {
+    stockCountId: db.nextIds.stockCount++,
+    batchId: batch.batchId,
+    productId: product.productId,
+    systemQuantity: system,
+    countedQuantity: counted,
+    variance,
+    reason,
+    recordedBy: user.userId,
+    recordedAt: now.toISOString(),
+  };
+  db.stockCounts.push(record);
+  return {
+    stockCountId: record.stockCountId,
+    batchId: batch.batchId,
+    systemQuantity: system,
+    countedQuantity: counted,
+    variance,
+    reason,
+    recordedBy: user.userId,
+    recordedAt: record.recordedAt,
+  };
+}
+
 // ---------- password reset (SEC-5) ----------
 // Mock mode has no email: the link is printed to the browser console instead.
 
@@ -343,6 +443,11 @@ const routes = [
     return { batchId: batch.batchId, newStock: round(stockOf(db, product.productId)) };
   }],
 
+  // Waste / removals (FR-13): deducts from one batch and keeps a record with reason and worker.
+  ["POST", /^\/removals$/, [ADMIN, MANAGER, STAFF], (_m, body, user, db, now) => recordRemoval(db, body ?? {}, user, now)],
+  // Physical stock count (FR-9): the batch takes the counted quantity; variance is kept for audit.
+  ["POST", /^\/stock-counts$/, [ADMIN, MANAGER, STAFF], (_m, body, user, db, now) => recordStockCount(db, body ?? {}, user, now)],
+
   ["POST", /^\/sales$/, [ADMIN, CASHIER], (_m, body, _u, db, now) => recordSale(db, body ?? {}, now)],
   ["POST", /^\/sales\/csv$/, [ADMIN, CASHIER], async (_m, body, _u, db, now) => {
     const file = body instanceof FormData ? body.get("file") : null;
@@ -477,7 +582,7 @@ function deviceReading(db, { unitId, type, value }, now) {
 
 const DELAY_MS = 150;
 // POST routes that create a resource answer 201 (login, CSV import answer 200).
-const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales", "/users"]);
+const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales", "/users", "/removals", "/stock-counts"]);
 
 /** Mock transport: returns {status, body} like an HTTP response. */
 export async function mockRequest(method, path, body, token, now = new Date()) {

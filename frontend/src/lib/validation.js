@@ -97,3 +97,64 @@ export function productToPayload(p) {
     lowStockThreshold: Number(p.lowStockThreshold),
   };
 }
+
+// ---------- Waste / removals (FR-13) and stock counts (FR-9) ----------
+
+export const MAX_QTY = 999999.999; // same ceiling as the backend (check_quantity)
+export const REMOVAL_REASONS = ["Damaged", "Spoilage", "Temperature breach", "Expired", "Other"];
+export const REMOVAL_REASON_MAX = 40; // backend: reason is 1-40 characters
+export const REMOVAL_OTHER_MAX = 30; // leaves room for the "Other: " prefix inside the 40
+export const COUNT_REASON_MAX = 255; // backend: reason is 1-255 characters
+export const COUNT_REASON_HINTS = [
+  "Routine count",
+  "Miscount at receiving",
+  "Damaged stock found",
+  "Shrinkage / loss",
+];
+
+/** The reason string sent to the API: "Other" plus the worker's note becomes "Other: note". */
+export function removalReasonText(reason, detail = "") {
+  const note = String(detail ?? "").trim();
+  return reason === "Other" && note ? `Other: ${note}` : String(reason ?? "").trim();
+}
+
+function quantityProblem(value, unit, { allowZero }) {
+  const qty = num(value);
+  if (Number.isNaN(qty)) return "Enter a number";
+  if (qty < 0 || (qty === 0 && !allowZero)) return allowZero ? "Cannot be negative" : "Quantity must be greater than 0";
+  if (qty > MAX_QTY) return `At most ${MAX_QTY}`;
+  if (Math.round(qty * 1000) / 1000 !== qty) return "At most 3 decimal places";
+  if (unit === "piece" && !Number.isInteger(qty)) return "Whole pieces only";
+  return null;
+}
+
+/** FR-13 removal. `available` = quantity left in the chosen batch. */
+export function validateRemoval({ batchId, qty, reason, detail, available, unit }) {
+  const e = {};
+  if (isBlank(batchId)) e.batchId = "Choose the batch to remove from";
+  const problem = quantityProblem(qty, unit, { allowZero: false });
+  if (problem) e.qty = problem;
+  else if (available !== undefined && Number(qty) > available)
+    e.qty = `Only ${available} ${unit ?? ""} left in this batch`.trim();
+  if (isBlank(reason)) e.reason = "Choose a reason";
+  else if (removalReasonText(reason, detail).length > REMOVAL_REASON_MAX)
+    e.reason = `At most ${REMOVAL_REASON_MAX} characters`;
+  return e;
+}
+
+/** FR-9 stock count. Zero is allowed: the shelf is empty. */
+export function validateStockCount({ batchId, counted, reason, unit }) {
+  const e = {};
+  if (isBlank(batchId)) e.batchId = "Choose the batch you counted";
+  const problem = quantityProblem(counted, unit, { allowZero: true });
+  if (problem) e.counted = problem;
+  if (isBlank(reason)) e.reason = "Give a reason for the count";
+  else if (String(reason).trim().length > COUNT_REASON_MAX)
+    e.reason = `At most ${COUNT_REASON_MAX} characters`;
+  return e;
+}
+
+/** counted - system, rounded so 0.1 + 0.2 style noise never shows. */
+export function countVariance(system, counted) {
+  return Math.round((Number(counted) - Number(system)) * 1000) / 1000;
+}

@@ -36,6 +36,9 @@ export const api = {
   receiveBatch: (body) => request("POST", "/batches", body),
   restock: (body) => request("POST", "/restocks", body),
   fefo: (productId) => request("GET", `/batches/fefo?productId=${productId}`),
+  // Waste / removals (FR-13) and physical stock counts (FR-9)
+  recordRemoval: (body) => request("POST", "/removals", body),
+  recordStockCount: (body) => request("POST", "/stock-counts", body),
 
   // Sales (FR-3, FR-7, FR-8)
   recordSale: (body) => request("POST", "/sales", body),
