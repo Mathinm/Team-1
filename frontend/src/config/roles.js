@@ -15,6 +15,8 @@ export const MENU = [
   { path: "/dashboard", label: "Dashboard", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/products", label: "Products", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/stock", label: "Stock & FEFO", roles: [ADMIN, MANAGER, STAFF] },
+  { path: "/stock-count", label: "Stock count", roles: [ADMIN, MANAGER, STAFF] },
+  { path: "/removals", label: "Waste & removals", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/sales", label: "Sales", roles: [ADMIN, CASHIER] },
   { path: "/alerts", label: "Alerts", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/refrigeration", label: "Refrigeration", roles: [ADMIN, MANAGER, STAFF] },
@@ -27,6 +29,8 @@ export const PERMISSIONS = {
   editProducts: [ADMIN, MANAGER],
   manageSuppliers: [ADMIN, MANAGER],
   receiveBatch: [ADMIN, MANAGER, STAFF],
+  recordRemoval: [ADMIN, MANAGER, STAFF], // FR-13
+  recordStockCount: [ADMIN, MANAGER, STAFF], // FR-9
   recordSale: [ADMIN, CASHIER],
   acknowledgeAlerts: [ADMIN, MANAGER],
   manageUsers: [ADMIN], // SEC-4: user administration is Admin-only

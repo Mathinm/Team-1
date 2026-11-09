@@ -7,6 +7,8 @@ import LoginPage from "./pages/LoginPage.jsx";
 import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordResetPages.jsx";
 import ProductsPage from "./pages/ProductsPage.jsx";
 import StockPage from "./pages/StockPage.jsx";
+import StockCountPage from "./pages/StockCountPage.jsx";
+import RemovalsPage from "./pages/RemovalsPage.jsx";
 import SalesPage from "./pages/SalesPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
@@ -27,6 +29,8 @@ function AppRoutes() {
         <Route path="/dashboard" element={guard(<DashboardPage />)} />
         <Route path="/products" element={guard(<ProductsPage />)} />
         <Route path="/stock" element={guard(<StockPage />)} />
+        <Route path="/stock-count" element={guard(<StockCountPage />)} />
+        <Route path="/removals" element={guard(<RemovalsPage />)} />
         <Route path="/sales" element={guard(<SalesPage />)} />
         <Route path="/alerts" element={guard(<AlertsPage />)} />
         <Route path="/refrigeration" element={guard(<RefrigerationPage />)} />
