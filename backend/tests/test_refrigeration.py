@@ -67,6 +67,22 @@ def test_manager_can_update_temperature_limits_and_out_of_range_raises_alert(cli
     assert any(a["type"] == "TEMPERATURE" and a["unitId"] == "Fridge-2" for a in active)
 
 
+def test_refrigeration_settings_reject_invalid_ranges(client, db, sensor_key):
+    make_unit(client, sensor_key)
+    inverted = client.put(
+        "/api/refrigeration/units/Fridge-2",
+        json={"tempMin": 8, "tempMax": 2},
+        headers=auth("manager1", "Manager"),
+    )
+    assert inverted.status_code == 400
+    outside_supported_range = client.put(
+        "/api/refrigeration/units/Fridge-2",
+        json={"tempMin": -61, "tempMax": 6},
+        headers=auth("manager1", "Manager"),
+    )
+    assert outside_supported_range.status_code == 422
+
+
 def test_staff_cannot_change_refrigeration_limits(client, db, sensor_key):
     make_unit(client, sensor_key)
     r = client.put(
