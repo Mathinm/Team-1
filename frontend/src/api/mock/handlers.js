@@ -557,6 +557,7 @@ function unitView(db, u) {
     name: u.name,
     tempMin: u.tempMin,
     tempMax: u.tempMax,
+    doorOpenLimitMinutes: u.doorOpenLimitMinutes ?? 5,
     status: u.status,
     doorOpen: u.doorOpen,
     currentTemp: last?.value ?? null,
