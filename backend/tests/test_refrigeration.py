@@ -80,7 +80,7 @@ def test_refrigeration_settings_reject_invalid_ranges(client, db, sensor_key):
         json={"tempMin": -61, "tempMax": 6},
         headers=auth("manager1", "Manager"),
     )
-    assert outside_supported_range.status_code == 422
+    assert outside_supported_range.status_code == 400
 
 
 def test_staff_cannot_change_refrigeration_limits(client, db, sensor_key):
