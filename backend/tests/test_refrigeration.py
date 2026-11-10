@@ -51,7 +51,7 @@ def set_door_limit(client, unit, minutes):
 
 
 # ---------------------------------------------------------------- FR-15 unit failure
-def test_manager_can_update_temperature_limits_and_out_of_range_raises_alert(client, db, sensor_key):
+def test_manager_can_update_temperature_limits_and_raise_alert(client, db, sensor_key):
     make_unit(client, sensor_key)
     send(client, sensor_key, "temperature", 7.0)
     r = client.put(
