@@ -410,6 +410,9 @@ const routes = [
     if (!body.receivedAt || !body.expiryDate) fail(400, "MISSING_FIELD", "Received date and expiry date are required");
     if (new Date(`${body.expiryDate}T23:59:59`) <= new Date(body.receivedAt))
       fail(400, "INVALID", "Expiry date must be after received date");
+    const latestExpiry = toISODate(addDays(new Date(body.receivedAt), product.shelfLifeDays));
+    if (body.expiryDate > latestExpiry)
+      fail(400, "INVALID", `Expiry date cannot be later than ${latestExpiry} (${product.shelfLifeDays}-day shelf-life)`);
     const batch = {
       batchId: db.nextIds.batch++,
       productId: product.productId,
@@ -487,6 +490,33 @@ const routes = [
   }],
 
   // Refrigeration units (FR-15, FR-16)
+  ["PUT", /^\\/refrigeration\\/units\\/([A-Za-z0-9-]+)$/, [ADMIN, MANAGER], ([, id], body = {}, _u, db, now) => {
+    const unit = db.units.find((u) => u.unitId === id);
+    if (!unit) fail(404, "NOT_FOUND", "Unknown refrigeration unit");
+    const nextMin = body.tempMin === undefined ? unit.tempMin : Number(body.tempMin);
+    const nextMax = body.tempMax === undefined ? unit.tempMax : Number(body.tempMax);
+    const nextDoorLimit = body.doorOpenLimitMinutes === undefined
+      ? (unit.doorOpenLimitMinutes ?? 5) : Number(body.doorOpenLimitMinutes);
+    if (![nextMin, nextMax].every(Number.isFinite) || nextMin >= nextMax)
+      fail(400, "INVALID", "Minimum temperature must be below maximum");
+    if (!Number.isInteger(nextDoorLimit) || nextDoorLimit < 1 || nextDoorLimit > 240)
+      fail(400, "INVALID", "Door-open limit must be a whole number from 1 to 240 minutes");
+    unit.tempMin = nextMin;
+    unit.tempMax = nextMax;
+    unit.doorOpenLimitMinutes = nextDoorLimit;
+    const latest = latestReading(db, id);
+    const outside = latest && (latest.value < nextMin || latest.value > nextMax);
+    const existing = db.alerts.find((a) => a.unitId === id && a.type === "temperature" && a.status !== "resolved");
+    if (outside && !existing) {
+      raise(db, now, { type: "temperature", severity: "critical", unitId: id,
+        message: `${unit.name} temperature ${latest.value} °C is outside ${nextMin} to ${nextMax} °C` });
+    } else if (!outside && existing) {
+      existing.status = "resolved";
+      existing.resolvedAt = now.toISOString();
+      existing.resolution = "Safe range changed: current temperature is now in range";
+    }
+    return unitView(db, unit);
+  }],
   ["GET", /^\/refrigeration\/units$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db) => db.units.map((u) => unitView(db, u))],
   ["GET", /^\/refrigeration\/units\/([A-Za-z0-9-]+)\/readings\?hours=(\d+)$/, [ADMIN, MANAGER, STAFF], ([, id, hours], _b, _u, db, now) => {
     if (!db.units.some((u) => u.unitId === id)) fail(404, "NOT_FOUND", "Unknown unit");
