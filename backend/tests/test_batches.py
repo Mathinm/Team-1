@@ -57,6 +57,30 @@ def test_tc_stk_01_expiring_on_the_day_received_is_allowed(client, seeded):
     assert receive(client, expiryDate=str(store_today())).status_code == 201
 
 
+def test_fr2_expiry_cannot_exceed_product_shelf_life(client, seeded):
+    # Tomato has a 5-day shelf life. The final allowed expiry day is inclusive.
+    allowed = receive(client, expiryDate=str(store_today() + timedelta(days=5)))
+    assert allowed.status_code == 201
+
+    too_late = receive(client, expiryDate=str(store_today() + timedelta(days=6)))
+    assert too_late.status_code == 400
+    assert "5-day shelf-life" in too_late.json()["error"]["message"]
+    assert stock(seeded, 1) == 57  # only the allowed batch was added
+
+
+def test_fr2_shelf_life_uses_received_store_day(client, seeded):
+    received = datetime.now(timezone.utc) - timedelta(days=2)
+    allowed_expiry = store_today(received) + timedelta(days=5)
+    r = receive(client, receivedAt=received.isoformat(), expiryDate=str(allowed_expiry))
+    assert r.status_code == 201
+    too_late = receive(
+        client,
+        receivedAt=received.isoformat(),
+        expiryDate=str(allowed_expiry + timedelta(days=1)),
+    )
+    assert too_late.status_code == 400
+
+
 @pytest.mark.parametrize("quantity", [0, -5, "abc", 0.0005])
 def test_tc_stk_01_bad_quantity_is_400(client, seeded, quantity):
     assert receive(client, quantity=quantity).status_code == 400
