@@ -78,9 +78,16 @@ const PAGE_ART = {
   "/users": ["Admin", "/img/login.jpg"],
 };
 
+/** Banner key for a path: exact match or a sub-path, longest first ("/stock-count" never falls to "/stock"). */
+export function pageArtKey(pathname) {
+  return Object.keys(PAGE_ART)
+    .sort((a, b) => b.length - a.length)
+    .find((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export function PageHeader({ title, subtitle, actions }) {
   const { pathname } = useLocation();
-  const key = Object.keys(PAGE_ART).find((p) => pathname.startsWith(p));
+  const key = pageArtKey(pathname);
   const [section, img] = PAGE_ART[key] ?? ["Overview", "/img/login.jpg"];
   return (
     <header className="page-hero">
