@@ -3,7 +3,7 @@ import { asBackground } from "../api/background.js";
 import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { can } from "../config/roles.js";
-import { Banner, EmptyState, Loading, PageHeader, SeverityTag } from "../components/ui.jsx";
+import { Banner, EmptyState, Loading, SeverityTag } from "../components/ui.jsx";
 import { formatDateTime } from "../lib/dates.js";
 import { ALERTS_CHANGED } from "../components/Layout.jsx";
 
@@ -73,10 +73,15 @@ export default function AlertsPage() {
 
   return (
     <section>
-      <PageHeader
-        title="Alerts"
-        subtitle="Low stock, expiry, fridge, door, temperature and power alerts. Refreshes automatically."
-      />
+      <header className="monitor-page-hero monitor-page-hero--alerts">
+        <img src="/img/login.jpg" alt="" aria-hidden="true" />
+        <span className="monitor-page-hero__shade" aria-hidden="true" />
+        <div className="monitor-page-hero__body">
+          <span className="monitor-page-hero__crumb">Monitoring / Safety centre</span>
+          <h1>Alerts</h1>
+          <p>Low stock, expiry, fridge, door, temperature and power alerts. Refreshes automatically.</p>
+        </div>
+      </header>
       <Banner kind="success" onClose={() => setMessage("")}>{message}</Banner>
       <Banner kind="error" onClose={() => setError("")}>{error}</Banner>
       {!canAck && <Banner kind="info">Only a Manager or Admin can acknowledge alerts.</Banner>}
