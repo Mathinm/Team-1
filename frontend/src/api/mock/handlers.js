@@ -490,7 +490,7 @@ const routes = [
   }],
 
   // Refrigeration units (FR-15, FR-16)
-  ["PUT", /^\\/refrigeration\\/units\\/([A-Za-z0-9-]+)$/, [ADMIN, MANAGER], ([, id], body = {}, _u, db, now) => {
+  ["PUT", /^\/refrigeration\/units\/([A-Za-z0-9-]+)$/, [ADMIN, MANAGER], ([, id], body = {}, _u, db, now) => {
     const unit = db.units.find((u) => u.unitId === id);
     if (!unit) fail(404, "NOT_FOUND", "Unknown refrigeration unit");
     const nextMin = body.tempMin === undefined ? unit.tempMin : Number(body.tempMin);
