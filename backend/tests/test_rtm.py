@@ -34,10 +34,10 @@ def test_rtm_completeness_and_traceability():
         suffix = rf"\s*\*\*{status_group}\*\*\s*\|"
         return prefix + cols + suffix
 
-    # 1. Verify all 19 Functional Requirements (FR-1 to FR-17, FR-19 = P; FR-18 = A)
+    # 1. Verify all 19 Functional Requirements (all P; FR-18 passed once its backend was added)
     for i in range(1, 20):
         fr_id = f"FR-{i}"
-        status_expected = "A" if fr_id == "FR-18" else "P"
+        status_expected = "P"
         pattern = row_pattern(fr_id, status_expected)
         match = re.search(pattern, content)
         assert match is not None, f"FR {fr_id} is missing or has wrong status in RTM"
