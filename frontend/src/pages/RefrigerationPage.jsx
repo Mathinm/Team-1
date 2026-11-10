@@ -123,12 +123,12 @@ export default function RefrigerationPage() {
         <Loading />
       ) : (
         <>
-          <div className="unit-grid">
+          <div className="unit-grid refrigeration-units" aria-label="Refrigeration units">
             {units.map((u) => (
               <button
                 key={u.unitId}
                 type="button"
-                className={`unit-card${u.unitId === selected ? " unit-card--selected" : ""} unit-card--${unitTone(u)}`}
+                className={`unit-card refrigeration-unit${u.unitId === selected ? " unit-card--selected" : ""} unit-card--${unitTone(u)}`}
                 onClick={() => setSelected(u.unitId)}
                 aria-pressed={u.unitId === selected}
               >
@@ -146,15 +146,16 @@ export default function RefrigerationPage() {
           </div>
 
           {unit && (
-            <div className="card">
+            <div className="card refrigeration-panel refrigeration-limits">
               <div className="card__head">
                 <div>
+                  <span className="refrigeration-eyebrow">Configuration</span>
                   <h2>{unit.name}: safety limits</h2>
                   <p className="muted small">Configured limits used by refrigeration monitoring.</p>
                 </div>
                 {!canEditLimits && <span className="badge badge--info">View only</span>}
               </div>
-              <form className="form" onSubmit={saveLimits}>
+              <form className="form refrigeration-limits__form" onSubmit={saveLimits}>
                 <div className="grid">
                   <label className="field">
                     <span>Minimum temperature (°C)</span>
@@ -183,9 +184,10 @@ export default function RefrigerationPage() {
               </form>
             </div>
 
-            <div className="card">
+            <div className="card refrigeration-panel refrigeration-history">
               <div className="card__head">
                 <div>
+                  <span className="refrigeration-eyebrow">Sensor trends</span>
                   <h2>{unit.name}: temperature history</h2>
                   <p className="muted small">Shaded band = allowed range. Red dots = readings outside it.</p>
                 </div>
@@ -214,7 +216,7 @@ export default function RefrigerationPage() {
           )}
 
           {USE_MOCK && unit && (
-            <div className="card demo-controls">
+            <div className="card demo-controls refrigeration-panel">
               <h2>Demo controls</h2>
               <p className="muted small">
                 Demo data only. Simulates the sensor simulator sending readings for {unit.name}, so you can show alerts being raised.
