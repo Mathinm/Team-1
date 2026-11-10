@@ -238,7 +238,7 @@ function ReceiveBatchForm({
 
   async function submit(e) {
     e.preventDefault();
-    const errs = validateBatch(form, product);
+    const errs = validateBatch(form);
     setErrors(errs);
     setError("");
     if (Object.keys(errs).length) return;
