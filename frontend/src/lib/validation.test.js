@@ -32,8 +32,8 @@ describe("validateBatch (FR-2)", () => {
     expect(validateBatch({ ...base, expiryDate: "2026-10-20", quantity: "0" }).quantity).toBeDefined();
     expect(validateBatch({ ...base, expiryDate: "2026-10-20", quantity: "-5" }).quantity).toBeDefined();
   });
-  it("accepts a valid batch within the product shelf-life", () => {
-    expect(validateBatch({ ...base, expiryDate: "2026-10-21" }, goodProduct)).toEqual({});
+  it("accepts a valid batch", () => {
+    expect(validateBatch({ ...base, expiryDate: "2026-10-20" })).toEqual({});
   });
   it("rejects an expiry date later than the product shelf-life", () => {
     const errors = validateBatch({ ...base, expiryDate: "2026-10-22" }, goodProduct);

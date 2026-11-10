@@ -98,7 +98,7 @@ function checkProductBody(b) {
   }
   if (!["kg", "piece", "l"].includes(b.unit)) fail(400, "INVALID", "Unit must be kg, piece or l");
   if (Number(b.tempMin) >= Number(b.tempMax))
-    fail(400, "INVALID", "Temperatures must be from -60 to 100 °C and minimum must be below maximum");
+    fail(400, "INVALID", "Minimum temperature must be below maximum");
   if (Number(b.costPrice) <= 0 || Number(b.sellingPrice) <= 0)
     fail(400, "INVALID", "Prices must be positive");
 }
