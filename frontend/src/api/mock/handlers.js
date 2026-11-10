@@ -98,7 +98,7 @@ function checkProductBody(b) {
   }
   if (!["kg", "piece", "l"].includes(b.unit)) fail(400, "INVALID", "Unit must be kg, piece or l");
   if (Number(b.tempMin) >= Number(b.tempMax))
-    fail(400, "INVALID", "Minimum temperature must be below maximum");
+    fail(400, "INVALID", "Temperatures must be from -60 to 100 °C and minimum must be below maximum");
   if (Number(b.costPrice) <= 0 || Number(b.sellingPrice) <= 0)
     fail(400, "INVALID", "Prices must be positive");
 }
@@ -497,7 +497,7 @@ const routes = [
     const nextMax = body.tempMax === undefined ? unit.tempMax : Number(body.tempMax);
     const nextDoorLimit = body.doorOpenLimitMinutes === undefined
       ? (unit.doorOpenLimitMinutes ?? 5) : Number(body.doorOpenLimitMinutes);
-    if (![nextMin, nextMax].every(Number.isFinite) || nextMin >= nextMax)
+    if (![nextMin, nextMax].every(Number.isFinite) || nextMin < -60 || nextMin > 100 || nextMax < -60 || nextMax > 100 || nextMin >= nextMax)
       fail(400, "INVALID", "Minimum temperature must be below maximum");
     if (!Number.isInteger(nextDoorLimit) || nextDoorLimit < 1 || nextDoorLimit > 240)
       fail(400, "INVALID", "Door-open limit must be a whole number from 1 to 240 minutes");
