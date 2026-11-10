@@ -75,8 +75,10 @@ export default function RefrigerationPage() {
     const tempMin = Number(limits.tempMin);
     const tempMax = Number(limits.tempMax);
     const doorOpenLimitMinutes = Number(limits.doorOpenLimitMinutes);
-    if (![tempMin, tempMax].every(Number.isFinite) || tempMin >= tempMax) {
-      setError("Minimum temperature must be lower than maximum temperature.");
+    if (limits.tempMin.trim() === "" || limits.tempMax.trim() === "" ||
+        ![tempMin, tempMax].every(Number.isFinite) || tempMin < -60 || tempMin > 100 ||
+        tempMax < -60 || tempMax > 100 || tempMin >= tempMax) {
+      setError("Enter temperatures from -60 to 100 °C, with minimum lower than maximum.");
       return;
     }
     if (!Number.isInteger(doorOpenLimitMinutes) || doorOpenLimitMinutes < 1 || doorOpenLimitMinutes > 240) {
@@ -168,17 +170,17 @@ export default function RefrigerationPage() {
                 <div className="grid">
                   <label className="field">
                     <span>Minimum temperature (°C)</span>
-                    <input type="number" step="0.1" value={limits.tempMin} disabled={!canEditLimits || savingLimits}
+                    <input type="number" min="-60" max="100" step="0.1" required value={limits.tempMin} disabled={!canEditLimits || savingLimits}
                       onChange={(e) => setLimits((v) => ({ ...v, tempMin: e.target.value }))} />
                   </label>
                   <label className="field">
                     <span>Maximum temperature (°C)</span>
-                    <input type="number" step="0.1" value={limits.tempMax} disabled={!canEditLimits || savingLimits}
+                    <input type="number" min="-60" max="100" step="0.1" required value={limits.tempMax} disabled={!canEditLimits || savingLimits}
                       onChange={(e) => setLimits((v) => ({ ...v, tempMax: e.target.value }))} />
                   </label>
                   <label className="field">
                     <span>Door-open limit (minutes)</span>
-                    <input type="number" min="1" max="240" step="1" value={limits.doorOpenLimitMinutes}
+                    <input type="number" min="1" max="240" step="1" required value={limits.doorOpenLimitMinutes}
                       disabled={!canEditLimits || savingLimits}
                       onChange={(e) => setLimits((v) => ({ ...v, doorOpenLimitMinutes: e.target.value }))} />
                   </label>
