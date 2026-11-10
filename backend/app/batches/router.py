@@ -97,8 +97,17 @@ def receive_batch(
     received_at = to_utc(body.receivedAt)
     if received_at > datetime.now(timezone.utc) + timedelta(minutes=5):
         raise ApiError(400, "INVALID", "Received date cannot be in the future")
-    if body.expiryDate < _received_day(received_at):
+    received_day = _received_day(received_at)
+    if body.expiryDate < received_day:
         raise ApiError(400, "INVALID", "Expiry date must be after received date")
+    latest_allowed_expiry = received_day + timedelta(days=product.shelf_life_days)
+    if body.expiryDate > latest_allowed_expiry:
+        raise ApiError(
+            400,
+            "INVALID",
+            f"Expiry date cannot be later than {latest_allowed_expiry.isoformat()} "
+            f"({product.shelf_life_days}-day shelf-life)",
+        )
     batch = Batch(
         store_id=get_settings().store_id,
         product_id=product.product_id,
