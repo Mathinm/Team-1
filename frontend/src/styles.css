@@ -393,15 +393,15 @@ tbody tr:last-child td { border-bottom: 0; }
   transform: translateY(-2px);
   box-shadow: 0 8px 22px rgba(2, 56, 30, .09);
 }
-.refrigeration-unit--warn { border-top-color: #b26a00; }
-.refrigeration-unit--danger { border-top-color: var(--vermilion, #e34234); }
-.refrigeration-unit--selected {
+.refrigeration-unit.unit-card--warn { border-top-color: #b26a00; }
+.refrigeration-unit.unit-card--danger { border-top-color: var(--vermilion, #e34234); }
+.refrigeration-unit.unit-card--selected {
   border-color: var(--emerald, #046a38);
   box-shadow: 0 0 0 3px rgba(4, 106, 56, .13), var(--shadow);
   background: linear-gradient(180deg, var(--emerald-soft, #e6f2eb), #fff 46%);
 }
-.refrigeration-unit__name { font-weight: 800; }
-.refrigeration-unit__temp {
+.refrigeration-unit .unit-card__name { font-weight: 800; }
+.refrigeration-unit .unit-card__temp {
   margin: 6px 0 2px;
   color: var(--forest, #02381e);
   font-family: var(--font-display, Georgia, serif);
