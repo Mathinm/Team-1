@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   recordStockCount: [ADMIN, MANAGER, STAFF], // FR-9
   recordSale: [ADMIN, CASHIER],
   acknowledgeAlerts: [ADMIN, MANAGER],
+  editFridgeLimits: [ADMIN, MANAGER], // FR-15
   manageUsers: [ADMIN], // SEC-4: user administration is Admin-only
 };
 
