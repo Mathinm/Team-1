@@ -157,6 +157,7 @@ export default function RefrigerationPage() {
           </div>
 
           {unit && (
+            <>
             <div className="card refrigeration-panel refrigeration-limits">
               <div className="card__head">
                 <div>
@@ -224,6 +225,7 @@ export default function RefrigerationPage() {
                 </>
               )}
             </div>
+            </>
           )}
 
           {USE_MOCK && unit && (
