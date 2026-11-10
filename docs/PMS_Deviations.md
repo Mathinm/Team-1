@@ -98,13 +98,14 @@ This document formally records all deviations between the initial specifications
 
 ---
 
-### Deviation 9: Reporting & Dashboard Backend Service (FR-18)
+### Deviation 9: Reporting & Dashboard Backend Service (FR-18) - resolved
 - **Initial Specification:** FR-18 specifies a dashboard and exportable reports covering stock, wastage, money lost, top/worst sellers, supplier quality, and temperature history.
-- **Final Resolution:**
-  - The backend currently does not provide standalone `/api/dashboard` or `/api/reports` REST endpoints.
-  - The dashboard and reporting functionality is implemented and verified on the frontend in client/demo mode (`frontend/src/pages/DashboardPage.jsx`, `frontend/src/api/mock/reports.test.js`), calculating waste percentage and financial loss from batch and sales data, and providing direct CSV and PDF exports via client-side libraries (`jspdf`).
-  - FR-18 status is categorized as **Accepted (`A`)** in the RTM.
-- **Impact:** Managerial reporting and dashboard metrics are fully demonstrated and tested in the user interface.
+- **What happened:** Until Sprint 3 the Dashboard and Reports screens worked only in demo mode, because the backend had no `/api/dashboard` or `/api/reports` endpoints.
+- **Resolution (issue #47, B1):**
+  - `GET /api/dashboard` and `GET /api/reports/{type}` are now served by the backend (`backend/app/reports/`), as in `docs/frontend-api-contract.md`. The calculations follow `frontend/src/api/mock/reports.js`, so demo mode and the real backend give the same numbers.
+  - Remaining difference: power events are taken from the fridge failure alerts (power lost and restored); the backend has no record of backup-power take-over time, so that column is not shown.
+  - PDF and CSV export work on the real data; verified by `backend/tests/test_reports.py`.
+  - FR-18 is now **Passed (`P`)** in the RTM.
 
 ---
 
@@ -123,8 +124,8 @@ This document formally records all deviations between the initial specifications
 
 | Requirement Area | SRS v1.0 Spec | Implementation Status | Alignment Conclusion |
 |---|---|---|---|
-| Core Functional Requirements (FR-1..17, FR-19) | Complete specification | 100% Implemented & Verified | **Passed (`P`)** |
-| Reporting & Dashboard (FR-18) | Complete specification | Frontend Client / Demo Mode | **Accepted (`A`) (Deviation 9)** |
+| Core Functional Requirements (FR-1..19) | Complete specification | 100% Implemented & Verified | **Passed (`P`)** |
+| Reporting & Dashboard (FR-18) | Complete specification | Backend endpoints added in Sprint 3 (#47) | **Passed (`P`) (Deviation 9 resolved)** |
 | Security Requirements (SEC-1..5) | Complete specification | 100% Implemented & Verified | **Passed (`P`)** |
 | Attendance Tracking (STP FR-24..27) | Included in Test Doc v1.1 | Deferred / Out of Scope | **Documented Deviation (noted in SAD Section 4.6)** |
 | Receipt Printing | Physical Hardware Device | JSON Response + Report PDF/CSV | **Documented Deviation (Deviation 3)** |

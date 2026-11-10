@@ -73,7 +73,6 @@ def count_sales(Session) -> int:
 
 
 # ============================================ 1. sale dated in the future
-@gap("S3-2", "a sale dated in the future is accepted")
 def test_edge_1_sale_dated_in_the_future_is_refused(client, seeded, cashier, pos_key):
     manual = client.post("/api/sales", headers=cashier,
                          json={"sku": "TOM-01", "quantity": 1, "soldAt": FAR_FUTURE})
@@ -99,7 +98,6 @@ def yesterday_evening() -> datetime:
     return datetime.combine(store_today() - timedelta(days=1), time(18, 0), tzinfo=IST)
 
 
-@gap("S3-2", "an offline sale from before midnight is refused after midnight")
 def test_edge_2_offline_sale_from_before_midnight_is_accepted_after_midnight(
         client, seeded, pos_key):
     """Bread's only batch was valid through yesterday. The sale happened yesterday evening."""
@@ -135,7 +133,6 @@ def test_edge_2_expiry_flips_at_midnight_in_store_time_not_utc(seeded):
 
 
 # ============================================ 3. CSV over the row limit
-@gap("S3-2", "a CSV over the row limit saves the first 5,000 rows, then refuses")
 def test_edge_3_csv_over_the_row_limit_saves_nothing(client, seeded, cashier, Session):
     r = upload_csv(client, cashier, "sku,quantity\n" + "TOM-01,0.001\n" * 5001)
     assert r.status_code == 400
@@ -149,7 +146,6 @@ def test_edge_3_csv_with_exactly_5000_rows_imports_every_row(client, seeded, cas
 
 
 # ============================================ 4. fridge limit changed
-@gap("S3-2", "tightening a fridge's limit does not check its current temperature")
 def test_edge_4_tightening_a_fridge_limit_alerts_on_the_current_temperature(
         client, seeded, sensor_key, Session):
     send_reading(client, sensor_key, "Fridge-9", "temperature", 7.0)  # inside the default 0-8

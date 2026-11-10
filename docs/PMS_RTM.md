@@ -41,7 +41,7 @@ The Requirements Traceability Matrix (RTM) establishes bidirectional traceabilit
 | **FR-15** | FR-17 | Refrigeration / Sensing | Monitor refrigeration unit operational state and trigger UNIT_FAILURE alarm on power loss | [#14](https://github.com/Mathinm/Team-1/issues/14) | [#36](https://github.com/Mathinm/Team-1/pull/36) | TC-SEN-01, TC-REF-01..02 | `backend/tests/test_refrigeration.py`<br>`frontend/src/api/mock/alerts.test.js` | **P** |
 | **FR-16** | FR-23 | Refrigeration / Sensing | Trigger DOOR_OPEN alarm when a refrigeration unit door remains open past configured limit | [#14](https://github.com/Mathinm/Team-1/issues/14) | [#36](https://github.com/Mathinm/Team-1/pull/36) | TC-SEN-02, TC-REF-03..04 | `backend/tests/test_refrigeration.py`<br>`frontend/src/api/mock/alerts.test.js` | **P** |
 | **FR-17** | FR-43 | Device API & Simulators | Authenticated device API with device keys and eventId idempotency for temperature, door, power | [#4](https://github.com/Mathinm/Team-1/issues/4) | [#25](https://github.com/Mathinm/Team-1/pull/25) | TC-SEN-03, TC-REF-05..07 | `backend/tests/test_device.py` | **P** |
-| **FR-18** | FR-29 | Reporting & Dashboard | Real-time dashboard and exportable CSV/PDF reports (waste, sales, sellers, suppliers, temp history) | [#16](https://github.com/Mathinm/Team-1/issues/16), [#17](https://github.com/Mathinm/Team-1/issues/17) | [#38](https://github.com/Mathinm/Team-1/pull/38), [#39](https://github.com/Mathinm/Team-1/pull/39) | TC-REP-01, TC-REP-01..05 | `frontend/src/api/mock/reports.test.js`<br>`frontend/src/pages/DashboardPage.jsx` | **A** |
+| **FR-18** | FR-29 | Reporting & Dashboard | Real-time dashboard and exportable CSV/PDF reports (waste, sales, sellers, suppliers, temp history) | [#16](https://github.com/Mathinm/Team-1/issues/16), [#17](https://github.com/Mathinm/Team-1/issues/17), [#47](https://github.com/Mathinm/Team-1/issues/47) | [#38](https://github.com/Mathinm/Team-1/pull/38), [#39](https://github.com/Mathinm/Team-1/pull/39), #47 B1 | TC-REP-01, TC-REP-01..05 | `backend/tests/test_reports.py`<br>`frontend/src/api/mock/reports.test.js` | **P** |
 | **FR-19** | FR-30 | Offline Buffering & Sync | Offline event buffering during network outage and de-duplicated synchronization upon reconnection | [#15](https://github.com/Mathinm/Team-1/issues/15) | [#36](https://github.com/Mathinm/Team-1/pull/36) | TC-REP-02, TC-REP-06..07 | `backend/tests/test_offline_sync.py` | **P** |
 
 ---
@@ -130,10 +130,10 @@ To reconcile the difference in requirement numbering identified in SAD Section 4
 
 ## 6. Summary Traceability Metrics
 
-- **Total Functional Requirements (FRs):** 19 / 19 Traceable (18 Passed, 1 Accepted via Demo/Mock Mode)
+- **Total Functional Requirements (FRs):** 19 / 19 Traceable (19 Passed)
 - **Total Security Requirements (SECs):** 5 / 5 Traceable (100% Passed)
 - **Total Non-Functional Requirements (NFRs):** 15 / 15 Traceable (12 Passed, 2 Accepted, 1 Not Yet Formally Verified)
 - **Total Requirements Traced:** 39 / 39 (100%)
-- **Automated Backend Test Cases:** 343 tests passing across 22 test suites (`backend/tests/`)
-- **Automated Frontend Test Cases:** 52 tests passing across 7 test suites (`frontend/src/`)
-- **Verification Status:** 35 requirements are Passed (`P`), 3 are Accepted (`A`), and 1 is Not Yet Verified (`NFR-6` usability trial).
+- **Automated Backend Test Cases:** 406 tests passing across 25 test suites (`backend/tests/`)
+- **Automated Frontend Test Cases:** 113 tests passing across 10 test suites (`frontend/src/`)
+- **Verification Status:** 36 requirements are Passed (`P`), 2 are Accepted (`A`), and 1 is Not Yet Verified (`NFR-6` usability trial).

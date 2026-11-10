@@ -1,5 +1,6 @@
 // Small shared UI pieces used across screens.
 
+import { useLocation } from "react-router-dom";
 import { describeDaysToExpiry, expiryStatus } from "../lib/dates.js";
 
 export function Field({ label, error, hint, children, id }) {
@@ -64,14 +65,35 @@ export function EmptyState({ children }) {
   return <p className="empty">{children}</p>;
 }
 
+// Page banner: section name, title and a slowly zooming store photo per screen (look only).
+const PAGE_ART = {
+  "/reports": ["Overview", "/img/hero-fruits.jpg"],
+  "/products": ["Inventory", "/img/hero-fruits.jpg"],
+  "/stock": ["Inventory", "/img/hero-veg.jpg"],
+  "/stock-count": ["Inventory", "/img/login.jpg"],
+  "/removals": ["Inventory", "/img/hero-veg.jpg"],
+  "/sales": ["Inventory", "/img/hero-fruits.jpg"],
+  "/alerts": ["Monitoring", "/img/login.jpg"],
+  "/refrigeration": ["Monitoring", "/img/categories/dairy.jpg"],
+  "/users": ["Admin", "/img/login.jpg"],
+};
+
 export function PageHeader({ title, subtitle, actions }) {
+  const { pathname } = useLocation();
+  const key = Object.keys(PAGE_ART).find((p) => pathname.startsWith(p));
+  const [section, img] = PAGE_ART[key] ?? ["Overview", "/img/login.jpg"];
   return (
-    <header className="page-header">
-      <div>
-        <h1>{title}</h1>
-        {subtitle && <p className="muted">{subtitle}</p>}
+    <header className="page-hero">
+      <img className="page-hero__img" src={img} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      <span className="page-hero__shade" aria-hidden="true" />
+      <div className="page-hero__body">
+        <div className="page-hero__text">
+          <span className="page-hero__crumb">{section} › {title}</span>
+          <h1>{title}</h1>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        {actions && <div className="page-hero__actions">{actions}</div>}
       </div>
-      {actions && <div className="page-header__actions">{actions}</div>}
     </header>
   );
 }
