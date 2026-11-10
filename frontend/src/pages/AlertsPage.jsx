@@ -81,8 +81,8 @@ export default function AlertsPage() {
       <Banner kind="error" onClose={() => setError("")}>{error}</Banner>
       {!canAck && <Banner kind="info">Only a Manager or Admin can acknowledge alerts.</Banner>}
 
-      <div className="toolbar">
-        <div className="tabs" role="tablist" aria-label="Alert status">
+      <div className="alerts-toolbar card">
+        <div className="tabs alerts-tabs" role="tablist" aria-label="Alert status">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -95,10 +95,10 @@ export default function AlertsPage() {
             </button>
           ))}
         </div>
-        <select aria-label="Alert type" value={type} onChange={(e) => setType(e.target.value)} className="select">
+        <label className="alerts-filter"><span className="alerts-filter__label">Filter by type</span><select aria-label="Alert type" value={type} onChange={(e) => setType(e.target.value)} className="select">
           <option value="">All types</option>
           {typesPresent.map((t) => <option key={t} value={t}>{ALERT_TYPES[t] ?? t}</option>)}
-        </select>
+        </select></label>
       </div>
 
       {!alerts ? (
@@ -106,15 +106,15 @@ export default function AlertsPage() {
       ) : visible.length === 0 ? (
         <EmptyState>{tab === "active" ? "No active alerts. All clear." : "No alerts to show."}</EmptyState>
       ) : (
-        <ul className="alert-list">
+        <ul className="alert-list alerts-list">
           {visible.map((a) => (
-            <li key={a.alertId} className={`alert-item alert-item--${a.severity}${a.status !== "active" ? " alert-item--done" : ""}`}>
-              <div className="alert-item__main">
+            <li key={a.alertId} className={`alert-item alerts-card alert-item--${a.severity}${a.status !== "active" ? " alert-item--done" : ""}`}>
+              <div className="alert-item__main alerts-card__main">
                 <div className="alert-item__tags">
                   <SeverityTag severity={a.severity} />
                   <span className="tag">{ALERT_TYPES[a.type] ?? a.type}</span>
                 </div>
-                <p className="alert-item__msg">{a.message}</p>
+                <p className="alert-item__msg alerts-card__message">{a.message}</p>
                 <p className="muted small">
                   Raised {formatDateTime(a.createdAt)}
                   {a.acknowledgedAt && ` · acknowledged by ${a.acknowledgedBy} at ${formatDateTime(a.acknowledgedAt)}`}
