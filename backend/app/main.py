@@ -19,6 +19,7 @@ from app.notifications.router import router as notifications_router
 from app.notifications.service import run_notification_scheduler
 from app.products.router import router as products_router
 from app.refrigeration.router import router as refrigeration_router
+from app.reports.router import router as reports_router
 from app.sales.router import router as sales_router
 from app.scheduler import Scheduler
 from app.stock.router import router as stock_router
@@ -80,6 +81,7 @@ app.include_router(batches_router)
 app.include_router(notifications_router)
 app.include_router(alerts_router)
 app.include_router(refrigeration_router)
+app.include_router(reports_router)
 app.include_router(markdowns_router)
 
 
