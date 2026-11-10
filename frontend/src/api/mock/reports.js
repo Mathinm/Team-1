@@ -227,6 +227,10 @@ export function buildReport(db, type, range, now = new Date()) {
   return { type, title: meta.title, ...report, summary: report.summary ?? [] };
 }
 
+const SEVERITY_RANK = { critical: 0, warning: 1, info: 2 };
+const bySeverityThenNewest = (a, b) =>
+  (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) || b.createdAt.localeCompare(a.createdAt);
+
 export function buildDashboard(db, now = new Date()) {
   const products = db.products.filter((p) => p.active);
   const onHand = (p) => db.batches.filter((b) => b.productId === p.productId).reduce((s, b) => s + b.quantity, 0);
@@ -259,7 +263,7 @@ export function buildDashboard(db, now = new Date()) {
     activeAlerts: {
       count: activeAlerts.length,
       critical: activeAlerts.filter((a) => a.severity === "critical").length,
-      latest: [...activeAlerts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5),
+      latest: [...activeAlerts].sort(bySeverityThenNewest).slice(0, 5),
     },
     units: (db.units ?? []).map((u) => ({ unitId: u.unitId, name: u.name, status: u.status })),
   };

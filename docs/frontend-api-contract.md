@@ -108,8 +108,8 @@ Rules:
 
 | Method & path | Who | Response |
 |---|---|---|
-| `GET /dashboard` **(added)** | Admin, Manager, Inventory Staff | `{salesToday:{count, amount}, stockValue, wasteLast7Days:{value, removals}, lowStock:[{productId, name, stock, threshold, unit}], expiringSoon:[{batchId, productName, quantity, unit, expiryDate, daysToExpiry}] (≤ 2 days, incl. expired), activeAlerts:{count, critical, latest:[alert]}}` |
-| `GET /reports/{type}?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Manager | `{type, title, from, to, columns:[{key, label, numeric?}], rows:[{...}], summary:[{label, value}]}`; 400 if from > to; 404 unknown type |
+| `GET /dashboard` **(added; backend in #47 B1)** | Admin, Manager, Inventory Staff | `{salesToday:{count, amount}, stockValue, wasteLast7Days:{value, removals}, lowStock:[{productId, name, stock, threshold, unit}], expiringSoon:[{batchId, productName, quantity, unit, expiryDate, daysToExpiry}] (≤ 2 days, incl. expired), activeAlerts:{count, critical, latest:[alert]}}` |
+| `GET /reports/{type}?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Manager | `{type, title, from, to, columns:[{key, label, numeric?}], rows:[{...}], summary:[{label, value}]}`; 400 if from > to, a date is missing or invalid, or the range is over 366 days; 404 unknown type |
 
 Report `type` values and what each must contain (reference implementation:
 `frontend/src/api/mock/reports.js`):
@@ -122,10 +122,12 @@ Report `type` values and what each must contain (reference implementation:
 | `supplier-quality` | per supplier: deliveries, units received, units wasted, waste rate % |
 | `removals` | every removal: date, product, batch, qty, reason, worker, value |
 | `temperature` | per unit per day: allowed range, min / avg / max, readings out of range |
-| `power-events` | mains failure start, restored, duration, backup take-over seconds |
+| `power-events` | per fridge failure: unit, power lost, restored (or "ongoing"), duration in minutes. The backend takes these from the UNIT_FAILURE alerts and has no backup take-over time; demo mode still shows that extra column |
 | `alerts` | raised time, severity, message, status, acknowledged by |
 
 An empty range returns `rows: []`; the UI shows "No data for this period".
+Backend: `backend/app/reports/` (#47 B1). Dates are whole days in the store's time zone; money is
+quantity x cost price, as in the demo backend.
 PDF and CSV are generated in the browser from this JSON, so the backend only
 returns JSON (the SAD's `format=pdf|csv` parameter is optional).
 ## Batches behaviour (issue #6)
