@@ -753,3 +753,45 @@ a.btn { text-decoration: none; }
   .alerts-card, .refrigeration-unit { transition: none; }
   .alerts-card:hover, .refrigeration-unit:hover { transform: none; }
 }
+
+/* ---------- markdowns (FR-14) ---------- */
+.markdowns .markdown-form { margin-bottom: 16px; }
+.scope-choice { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 0 0 12px; }
+.scope-choice legend { font-weight: 600; font-size: 0.9rem; padding: 0; margin-bottom: 6px; }
+.scope-choice label {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px;
+  border: 1.5px solid var(--border-strong); border-radius: 999px; background: var(--surface);
+  font-weight: 600; cursor: pointer;
+}
+.scope-choice label:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.scope-choice input { accent-color: var(--primary); }
+.price-old { color: var(--muted); text-decoration: line-through; }
+.price-new { font-weight: 800; color: var(--primary); }
+.sellthru { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.sellthru__bar { flex: 1; height: 8px; border-radius: 999px; background: var(--surface-alt); border: 1px solid var(--border); overflow: hidden; }
+.sellthru__bar > span { display: block; height: 100%; background: var(--primary); }
+.markdowns .rules-table, .markdowns .markdown-table { box-shadow: none; }
+@media (max-width: 699px) {
+  .markdowns td .sellthru { flex: 1; justify-content: flex-end; }
+  .markdowns td.actions .btn { min-height: 44px; }
+}
+
+/* ---------- Stock & Sales on small screens (S3-5 part A, issue #47) ---------- */
+/* A button that follows a field was touching it (Sales: Quantity then Record sale). */
+.form > .btn--block { margin-top: 14px; }
+/* The browser's grey "Choose File" button, styled like the rest. */
+.field input[type="file"]::file-selector-button {
+  margin-right: 10px; min-height: 30px; padding: 0 12px; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  background: var(--surface-alt); color: var(--text); font: inherit; font-weight: 700;
+}
+@media (max-width: 599px) {
+  /* Stock: the product box was narrower than the cards under it. */
+  .toolbar .field:has(#s-product) { flex: 1 1 100%; min-width: 0; }
+}
+@media (max-width: 699px) {
+  /* Stock cards: the expiry date and "4 days left" sat side by side and crowded the label.
+     The note now goes on its own line under the date. */
+  .table-wrap:not(.otable) td[data-label="Expiry"] { flex-wrap: wrap; }
+  .table-wrap:not(.otable) td[data-label="Expiry"] > .small { flex: 1 0 100%; text-align: right; }
+}

@@ -9,7 +9,7 @@ import { USE_MOCK } from "../api/client.js";
 // Menu sections, in order. Each menu entry from roles.js lands in the first section that lists it.
 const SECTIONS = [
   { label: "Overview", paths: ["/dashboard", "/reports"] },
-  { label: "Inventory", paths: ["/products", "/stock", "/stock-count", "/removals", "/sales"] },
+  { label: "Inventory", paths: ["/products", "/stock", "/stock-count", "/removals", "/markdowns", "/sales"] },
   { label: "Monitoring", paths: ["/alerts", "/refrigeration"] },
   { label: "Admin", paths: ["/users"] },
 ];
@@ -22,6 +22,7 @@ const ICONS = {
   "/stock": "M12 2l9 5-9 5-9-5 9-5z M3 12l9 5 9-5 M3 17l9 5 9-5",
   "/stock-count": "M9 11l3 3 8-8 M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9",
   "/removals": "M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14",
+  "/markdowns": "M19 5L5 19 M7 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
   "/sales": "M3 3h2l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 7H6 M9 21h.01 M18 21h.01",
   "/alerts": "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0",
   "/refrigeration": "M5 2h14v20H5z M5 10h14 M9 5v2 M9 13v4",

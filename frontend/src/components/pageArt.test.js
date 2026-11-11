@@ -14,7 +14,7 @@ describe("page banner lookup", () => {
   });
 
   it("finds every screen that has a banner", () => {
-    for (const p of ["/reports", "/products", "/stock", "/stock-count", "/removals", "/sales", "/alerts", "/refrigeration", "/users"]) {
+    for (const p of ["/reports", "/products", "/stock", "/stock-count", "/removals", "/markdowns", "/sales", "/alerts", "/refrigeration", "/users"]) {
       expect(pageArtKey(p)).toBe(p);
     }
   });
