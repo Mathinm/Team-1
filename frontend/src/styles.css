@@ -602,3 +602,154 @@ a.btn { text-decoration: none; }
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
   .dash-hero__leaf, .btn--shine::after { display: none; }
 }
+
+/* ---------- Issue #47: Alerts + Refrigeration page treatment ----------
+   Scoped to Pandu's assigned screens. It uses the shared Forest tokens when
+   present, with matching fallbacks while the shared design PR is pending. */
+.alerts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border-color: var(--border-strong, #cfe0d6);
+  background: var(--surface, #fff);
+}
+.alerts-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  background: var(--surface-alt, #f4f8f5);
+  border: 1px solid var(--border, #e1eae4);
+}
+.alerts-tabs .tab { flex: 0 0 auto; }
+.alerts-tabs .tab--active {
+  color: var(--emerald-dark, #02381e);
+  background: var(--ivory, #f9ebd7);
+  box-shadow: inset 0 -3px 0 var(--emerald, #046a38);
+}
+.alerts-filter {
+  display: flex;
+  flex: 0 1 230px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(100%, 190px);
+}
+.alerts-filter__label, .refrigeration-eyebrow {
+  color: var(--muted, #4b5563);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.alerts-filter .select { width: 100%; min-width: 0; }
+.alerts-list { gap: 12px; }
+.alerts-card {
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid var(--border-strong, #cfe0d6);
+  border-left: 5px solid var(--emerald, #046a38);
+  border-radius: var(--radius, 16px);
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow);
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+.alerts-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 20px rgba(2, 56, 30, .08);
+}
+.alerts-card.alert-item--critical { border-left-color: var(--vermilion, #e34234); }
+.alerts-card.alert-item--warning { border-left-color: var(--warn-strong, #b26a00); }
+.alerts-card.alert-item--done { opacity: .78; }
+.alerts-card__main { min-width: 0; }
+.alerts-card__message { overflow-wrap: anywhere; line-height: 1.5; }
+.alerts-card .btn { flex: 0 0 auto; }
+
+.refrigeration-units {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 14px;
+}
+.refrigeration-unit {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--border-strong, #cfe0d6);
+  border-top: 4px solid var(--emerald, #046a38);
+  border-radius: var(--radius, 16px);
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.refrigeration-unit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(2, 56, 30, .09);
+}
+.refrigeration-unit.unit-card--warn { border-top-color: #b26a00; }
+.refrigeration-unit.unit-card--danger { border-top-color: var(--vermilion, #e34234); }
+.refrigeration-unit.unit-card--selected {
+  border-color: var(--emerald, #046a38);
+  box-shadow: 0 0 0 3px rgba(4, 106, 56, .13), var(--shadow);
+  background: linear-gradient(180deg, var(--emerald-soft, #e6f2eb), #fff 46%);
+}
+.refrigeration-unit .unit-card__name { font-weight: 800; }
+.refrigeration-unit .unit-card__temp {
+  margin: 6px 0 2px;
+  color: var(--forest, #02381e);
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(1.8rem, 5vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.refrigeration-panel {
+  border-color: var(--border-strong, #cfe0d6);
+  border-radius: var(--radius, 16px);
+  box-shadow: var(--shadow);
+}
+.refrigeration-panel .card__head { align-items: flex-start; }
+.refrigeration-eyebrow { display: block; margin-bottom: 4px; color: var(--emerald, #046a38); }
+.refrigeration-limits {
+  border-top: 3px solid var(--emerald, #046a38);
+}
+.refrigeration-limits__form .field input:disabled {
+  color: var(--text, #111827);
+  background: var(--surface-alt, #f4f8f5);
+  opacity: 1;
+  cursor: not-allowed;
+}
+.refrigeration-limits .badge--info { align-self: flex-start; }
+.refrigeration-history { border-top: 3px solid var(--mint, #9fe0bd); }
+.refrigeration-history .chips { justify-content: flex-end; }
+.refrigeration-panel .chart { max-width: 100%; }
+.refrigeration-panel .report-summary {
+  padding: 12px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface-alt, #f4f8f5);
+}
+.refrigeration-panel .report-summary strong { overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .alerts-toolbar { align-items: stretch; padding: 10px; }
+  .alerts-tabs { display: flex; width: 100%; }
+  .alerts-tabs .tab { flex: 1 0 auto; padding: 0 10px; font-size: .84rem; }
+  .alerts-filter { flex: 1 1 100%; }
+  .alerts-card { padding: 13px; gap: 10px; }
+  .alerts-card .btn { width: 100%; }
+  .refrigeration-units { grid-template-columns: 1fr; }
+  .refrigeration-panel { padding: 14px; }
+  .refrigeration-history .card__head { align-items: stretch; }
+  .refrigeration-history .chips { justify-content: flex-start; }
+  .refrigeration-history .chips .btn { flex: 1 1 65px; }
+  .refrigeration-limits .form__actions .btn { width: 100%; }
+  .chart-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
+@media (min-width: 601px) and (max-width: 899px) {
+  .refrigeration-units { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .alerts-toolbar { align-items: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alerts-card, .refrigeration-unit { transition: none; }
+  .alerts-card:hover, .refrigeration-unit:hover { transform: none; }
+}

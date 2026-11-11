@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { asBackground } from "../api/background.js";
 import { api } from "../api/endpoints.js";
+import { useAuth } from "../auth/AuthContext.jsx";
+import { can } from "../config/roles.js";
 import { USE_MOCK } from "../api/client.js";
 import { Banner, Loading, PageHeader } from "../components/ui.jsx";
 import TempChart from "../components/TempChart.jsx";
@@ -18,6 +20,10 @@ export default function RefrigerationPage() {
   const [readings, setReadings] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const { user } = useAuth();
+  const canEditLimits = can(user.role, "editFridgeLimits");
+  const [limits, setLimits] = useState({ tempMin: "", tempMax: "", doorOpenLimitMinutes: "" });
+  const [savingLimits, setSavingLimits] = useState(false);
 
   const loadUnits = useCallback(async () => {
     try {
@@ -53,6 +59,45 @@ export default function RefrigerationPage() {
 
   const unit = units?.find((u) => u.unitId === selected);
 
+  useEffect(() => {
+    if (!unit) return;
+    setLimits({
+      tempMin: String(unit.tempMin),
+      tempMax: String(unit.tempMax),
+      doorOpenLimitMinutes: String(unit.doorOpenLimitMinutes ?? 5),
+    });
+  }, [unit?.unitId, unit?.tempMin, unit?.tempMax, unit?.doorOpenLimitMinutes]);
+
+  async function saveLimits(e) {
+    e.preventDefault();
+    setError("");
+    setMessage("");
+    const tempMin = Number(limits.tempMin);
+    const tempMax = Number(limits.tempMax);
+    const doorOpenLimitMinutes = Number(limits.doorOpenLimitMinutes);
+    if (limits.tempMin.trim() === "" || limits.tempMax.trim() === "" ||
+        ![tempMin, tempMax].every(Number.isFinite) || tempMin < -60 || tempMin > 100 ||
+        tempMax < -60 || tempMax > 100 || tempMin >= tempMax) {
+      setError("Enter temperatures from -60 to 100 °C, with minimum lower than maximum.");
+      return;
+    }
+    if (!Number.isInteger(doorOpenLimitMinutes) || doorOpenLimitMinutes < 1 || doorOpenLimitMinutes > 240) {
+      setError("Door-open limit must be a whole number from 1 to 240 minutes.");
+      return;
+    }
+    setSavingLimits(true);
+    try {
+      const updated = await api.updateUnitSettings(unit.unitId, { tempMin, tempMax, doorOpenLimitMinutes });
+      setUnits((current) => current?.map((item) => item.unitId === updated.unitId ? updated : item) ?? current);
+      setMessage(`Safety limits saved for ${unit.name}.${updated.inRange === false ? " The current temperature is outside the new range; an alert has been raised." : ""}`);
+      window.dispatchEvent(new Event(ALERTS_CHANGED));
+    } catch (e2) {
+      setError(e2.message);
+    } finally {
+      setSavingLimits(false);
+    }
+  }
+
   async function simulate(body, text) {
     setError("");
     try {
@@ -80,12 +125,12 @@ export default function RefrigerationPage() {
         <Loading />
       ) : (
         <>
-          <div className="unit-grid">
+          <div className="unit-grid refrigeration-units" aria-label="Refrigeration units">
             {units.map((u) => (
               <button
                 key={u.unitId}
                 type="button"
-                className={`unit-card${u.unitId === selected ? " unit-card--selected" : ""} unit-card--${unitTone(u)}`}
+                className={`unit-card refrigeration-unit${u.unitId === selected ? " unit-card--selected" : ""} unit-card--${unitTone(u)}`}
                 onClick={() => setSelected(u.unitId)}
                 aria-pressed={u.unitId === selected}
               >
@@ -103,9 +148,49 @@ export default function RefrigerationPage() {
           </div>
 
           {unit && (
-            <div className="card">
+            <>
+            <div className="card refrigeration-panel refrigeration-limits">
               <div className="card__head">
                 <div>
+                  <span className="refrigeration-eyebrow">Configuration</span>
+                  <h2>{unit.name}: safety limits</h2>
+                  <p className="muted small">Configured limits used by refrigeration monitoring.</p>
+                </div>
+                {!canEditLimits && <span className="badge badge--info">View only</span>}
+              </div>
+              <form className="form refrigeration-limits__form" onSubmit={saveLimits}>
+                <div className="grid">
+                  <label className="field">
+                    <span>Minimum temperature (°C)</span>
+                    <input type="number" min="-60" max="100" step="0.1" required value={limits.tempMin} disabled={!canEditLimits || savingLimits}
+                      onChange={(e) => setLimits((v) => ({ ...v, tempMin: e.target.value }))} />
+                  </label>
+                  <label className="field">
+                    <span>Maximum temperature (°C)</span>
+                    <input type="number" min="-60" max="100" step="0.1" required value={limits.tempMax} disabled={!canEditLimits || savingLimits}
+                      onChange={(e) => setLimits((v) => ({ ...v, tempMax: e.target.value }))} />
+                  </label>
+                  <label className="field">
+                    <span>Door-open limit (minutes)</span>
+                    <input type="number" min="1" max="240" step="1" required value={limits.doorOpenLimitMinutes}
+                      disabled={!canEditLimits || savingLimits}
+                      onChange={(e) => setLimits((v) => ({ ...v, doorOpenLimitMinutes: e.target.value }))} />
+                  </label>
+                </div>
+                {canEditLimits && (
+                  <div className="form__actions">
+                    <button className="btn btn--primary" type="submit" disabled={savingLimits}>
+                      {savingLimits ? "Saving…" : "Save safety limits"}
+                    </button>
+                  </div>
+                )}
+              </form>
+            </div>
+
+            <div className="card refrigeration-panel refrigeration-history">
+              <div className="card__head">
+                <div>
+                  <span className="refrigeration-eyebrow">Sensor trends</span>
                   <h2>{unit.name}: temperature history</h2>
                   <p className="muted small">Shaded band = allowed range. Red dots = readings outside it.</p>
                 </div>
@@ -131,10 +216,11 @@ export default function RefrigerationPage() {
                 </>
               )}
             </div>
+            </>
           )}
 
           {USE_MOCK && unit && (
-            <div className="card demo-controls">
+            <div className="card demo-controls refrigeration-panel">
               <h2>Demo controls</h2>
               <p className="muted small">
                 Demo data only. Simulates the sensor simulator sending readings for {unit.name}, so you can show alerts being raised.

@@ -51,6 +51,48 @@ def set_door_limit(client, unit, minutes):
 
 
 # ---------------------------------------------------------------- FR-15 unit failure
+def test_manager_can_update_temperature_limits_and_raise_alert(client, db, sensor_key):
+    make_unit(client, sensor_key)
+    send(client, sensor_key, "temperature", 7.0)
+    r = client.put(
+        "/api/refrigeration/units/Fridge-2",
+        json={"tempMin": 2, "tempMax": 6, "doorOpenLimitMinutes": 4},
+        headers=auth("manager1", "Manager"),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["tempMin"] == 2
+    assert r.json()["tempMax"] == 6
+    assert r.json()["doorOpenLimitMinutes"] == 4
+    active = alerts(client, status="active")
+    assert any(a["type"] == "TEMPERATURE" and a["unitId"] == "Fridge-2" for a in active)
+
+
+def test_refrigeration_settings_reject_invalid_ranges(client, db, sensor_key):
+    make_unit(client, sensor_key)
+    inverted = client.put(
+        "/api/refrigeration/units/Fridge-2",
+        json={"tempMin": 8, "tempMax": 2},
+        headers=auth("manager1", "Manager"),
+    )
+    assert inverted.status_code == 400
+    outside_supported_range = client.put(
+        "/api/refrigeration/units/Fridge-2",
+        json={"tempMin": -61, "tempMax": 6},
+        headers=auth("manager1", "Manager"),
+    )
+    assert outside_supported_range.status_code == 400
+
+
+def test_staff_cannot_change_refrigeration_limits(client, db, sensor_key):
+    make_unit(client, sensor_key)
+    r = client.put(
+        "/api/refrigeration/units/Fridge-2",
+        json={"tempMin": 2, "tempMax": 6},
+        headers=auth("staff1", "Inventory Staff"),
+    )
+    assert r.status_code == 403
+
+
 def test_unit_failure_changes_status_and_raises_alarm(client, db, sensor_key):
     """TC-REF-01: Fridge-2 is OK, then the simulator reports power OFF."""
     assert send(client, sensor_key, "power", "ON")["alertRaised"] is False

@@ -53,6 +53,8 @@ export const api = {
     (await request("GET", `/alerts?status=${status}`)).map(normalizeAlert),
   acknowledgeAlert: async (id) => normalizeAlert(await request("POST", `/alerts/${id}/acknowledge`)),
   units: async () => (await request("GET", "/refrigeration/units")).map(normalizeUnit),
+  updateUnitSettings: async (unitId, body) =>
+    normalizeUnit(await request("PUT", `/refrigeration/units/${encodeURIComponent(unitId)}`, body)),
   unitReadings: (unitId, hours = 24) =>
     request("GET", `/refrigeration/units/${encodeURIComponent(unitId)}/readings?hours=${hours}`),
   // Demo mode only: lets the Refrigeration page simulate sensor events.

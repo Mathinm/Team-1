@@ -159,9 +159,9 @@ function seedHistory(now, products, batches) {
 
   // Refrigeration units and readings every 30 min for the last 7 days.
   const units = [
-    { unitId: "FR-1", name: "Fridge 1 (Dairy)", tempMin: 2, tempMax: 6, status: "ok", doorOpen: false },
-    { unitId: "CH-1", name: "Chiller (Produce)", tempMin: 4, tempMax: 10, status: "ok", doorOpen: false },
-    { unitId: "FR-2", name: "Fridge 2 (Backup)", tempMin: 2, tempMax: 6, status: "failed", doorOpen: false },
+    { unitId: "FR-1", name: "Fridge 1 (Dairy)", tempMin: 2, tempMax: 6, doorOpenLimitMinutes: 5, status: "ok", doorOpen: false },
+    { unitId: "CH-1", name: "Chiller (Produce)", tempMin: 4, tempMax: 10, doorOpenLimitMinutes: 5, status: "ok", doorOpen: false },
+    { unitId: "FR-2", name: "Fridge 2 (Backup)", tempMin: 2, tempMax: 6, doorOpenLimitMinutes: 5, status: "failed", doorOpen: false },
   ];
   const readings = [];
   const start = addDays(now, -7);

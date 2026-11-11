@@ -47,7 +47,7 @@ export function validateProduct(p) {
 }
 
 /** FR-2 batch receipt. */
-export function validateBatch(b) {
+export function validateBatch(b, product) {
   const e = {};
   if (isBlank(b.productId)) e.productId = "Choose a product";
   if (isBlank(b.supplierId)) e.supplierId = "Choose a supplier";
@@ -59,6 +59,15 @@ export function validateBatch(b) {
     const received = new Date(b.receivedAt);
     const expiry = new Date(`${b.expiryDate}T23:59:59`);
     if (expiry <= received) e.expiryDate = "Expiry date must be after received date";
+    if (!e.expiryDate && product && Number.isInteger(Number(product.shelfLifeDays))) {
+      const receivedDay = b.receivedAt.slice(0, 10);
+      const [year, month, day] = receivedDay.split("-").map(Number);
+      const latest = new Date(Date.UTC(year, month - 1, day + Number(product.shelfLifeDays)));
+      const latestAllowed = latest.toISOString().slice(0, 10);
+      if (b.expiryDate > latestAllowed) {
+        e.expiryDate = `Expiry date cannot be later than ${latestAllowed} (${product.shelfLifeDays}-day shelf-life)`;
+      }
+    }
   }
   return e;
 }
