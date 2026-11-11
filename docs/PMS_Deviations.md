@@ -4,7 +4,7 @@
 **Document Version:** 1.0  
 **Date:** November 1, 2026  
 **Status:** Draft  
-**References:** SRS v1.0 (`PMS_SRS.docx`), SAD v1.1 (`PMS_SAD.docx`), Test Case Document v1.1 (`PMS_Test_Cases_v1-1.pdf`)  
+**References:** SRS v1.0 (`docs/main/PMS_SRS.docx`), SAD v1.1 (`docs/main/PMS_SAD.docx`), Software Test Plan v1.4 (`docs/main/PMS_Test.docx`)
 **Requirement Identifier:** DOC-1  
 
 ---
