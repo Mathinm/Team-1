@@ -5,7 +5,7 @@ import { api } from "../api/endpoints.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { can } from "../config/roles.js";
 import { USE_MOCK } from "../api/client.js";
-import { Banner, Loading } from "../components/ui.jsx";
+import { Banner, Loading, PageHeader } from "../components/ui.jsx";
 import TempChart from "../components/TempChart.jsx";
 import { formatDateTime } from "../lib/dates.js";
 import { ALERTS_CHANGED } from "../components/Layout.jsx";
@@ -113,20 +113,11 @@ export default function RefrigerationPage() {
 
   return (
     <section>
-      <header className="monitor-page-hero monitor-page-hero--refrigeration">
-        <img src="/img/categories/dairy.jpg" alt="" aria-hidden="true" />
-        <span className="monitor-page-hero__shade" aria-hidden="true" />
-        <div className="monitor-page-hero__body">
-          <div>
-            <span className="monitor-page-hero__crumb">Monitoring / Cold-chain safety</span>
-            <h1>Refrigeration</h1>
-            <p>Status, current temperature and history for each unit. Refreshes automatically.</p>
-          </div>
-          <div className="monitor-page-hero__actions">
-            <Link className="btn" to="/alerts">View alerts</Link>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Refrigeration"
+        subtitle="Status, current temperature and history for each unit. Refreshes automatically."
+        actions={<Link className="btn" to="/alerts">View alerts</Link>}
+      />
       <Banner kind="success" onClose={() => setMessage("")}>{message}</Banner>
       <Banner kind="error" onClose={() => setError("")}>{error}</Banner>
 
