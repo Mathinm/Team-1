@@ -4,7 +4,7 @@
 **Document Version:** 1.0  
 **Date:** November 1, 2026  
 **Status:** Draft  
-**Standard References:** SRS v1.0 (`PMS_SRS.docx`), SAD v1.1 (`PMS_SAD.docx`), Test Case Document v1.1 (`PMS_Test_Cases_v1-1.pdf`)  
+**Standard References:** SRS v1.0 (`docs/main/PMS_SRS.docx`), SAD v1.1 (`docs/main/PMS_SAD.docx`), Software Test Plan v1.4 (`docs/main/PMS_Test.docx`)  
 **Requirement Identifier:** NFR-15 / TC-RTM-01  
 
 ---
