@@ -122,6 +122,7 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
     .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.batchId - b.batchId);
 
   let left = qty;
+  let billed = 0;
   const batchesUsed = [];
   for (const b of eligible) {
     if (left <= 0) break;
@@ -129,6 +130,15 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
     b.quantity = round(b.quantity - take);
     left = round(left - take);
     batchesUsed.push({ batchId: b.batchId, qty: take, expiryDate: b.expiryDate });
+    // FR-14: a batch with an active markdown is billed at its discounted price.
+    const md = activeMarkdown(db, b.batchId);
+    if (md) {
+      billed += take * md.discountedPrice;
+      md.quantitySold = round(md.quantitySold + take);
+      if (b.quantity <= 0) md.status = "sold_out";
+    } else {
+      billed += take * product.sellingPrice;
+    }
   }
 
   const sale = {
@@ -139,7 +149,7 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
     unit: product.unit,
     soldAt: soldAt ? new Date(soldAt).toISOString() : now.toISOString(),
     batchesUsed,
-    amount: round(qty * product.sellingPrice),
+    amount: Math.round(billed * 100) / 100,
   };
   db.sales.push(sale);
   return {
@@ -150,6 +160,143 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
     batchesUsed,
     remainingStock: round(stockOf(db, product.productId)),
   };
+}
+
+// ---------- markdown rules (FR-14) ----------
+// Mirrors backend/app/markdowns/service.py: a rule marks down batches that are close
+// to expiry; the best matching rule wins (product rule > category rule > store-wide rule).
+
+const MAX_MARKDOWN_PERCENT = 40; // backend setting max_markdown_percent
+const cents = (n) => Math.round(n * 100) / 100;
+
+function activeMarkdown(db, batchId) {
+  return (db.markdowns ?? []).find((m) => m.batchId === batchId && m.status === "active");
+}
+
+function createMarkdownRule(db, body, user, now) {
+  const { productId, category, name } = body;
+  const discount = Number(body.discountPercent);
+  const days = body.daysBeforeExpiry === undefined || body.daysBeforeExpiry === "" ? 1 : Number(body.daysBeforeExpiry);
+  if (!Number.isFinite(discount) || discount <= 0) fail(422, "VALIDATION", "Input should be greater than 0");
+  if (!Number.isInteger(days) || days < 0) fail(422, "VALIDATION", "Input should be a whole number of days, 0 or more");
+  if (discount > MAX_MARKDOWN_PERCENT)
+    fail(422, "DISCOUNT_EXCEEDS_MAX", `Discount exceeds maximum ${MAX_MARKDOWN_PERCENT}%`);
+  const hasProduct = productId !== undefined && productId !== null && productId !== "";
+  if (hasProduct && !db.products.some((p) => p.productId === Number(productId)))
+    fail(404, "NOT_FOUND", `Product #${productId} not found`);
+
+  db.markdownRules ??= [];
+  db.nextIds.markdownRule ??= 1;
+  const rule = {
+    ruleId: db.nextIds.markdownRule++,
+    productId: hasProduct ? Number(productId) : null,
+    category: category ? String(category) : null,
+    daysBeforeExpiry: days,
+    discountPercent: discount,
+    name: name?.trim() || `${discount}% off at ${days}d to expiry`,
+    active: true,
+    createdBy: user.userId,
+    createdAt: now.toISOString(),
+  };
+  db.markdownRules.push(rule);
+  return rule;
+}
+
+const activeRules = (db) => (db.markdownRules ?? []).filter((r) => r.active).sort((a, b) => b.ruleId - a.ruleId);
+
+function deleteMarkdownRule(db, id) {
+  const rule = (db.markdownRules ?? []).find((r) => r.ruleId === Number(id) && r.active);
+  if (!rule) fail(404, "NOT_FOUND", `Markdown rule #${id} not found`);
+  rule.active = false; // soft delete, like the backend; markdowns already applied stay
+  return { deleted: true, ruleId: rule.ruleId };
+}
+
+function markdownOut(db, m) {
+  const product = db.products.find((p) => p.productId === m.productId);
+  const batch = db.batches.find((b) => b.batchId === m.batchId);
+  return {
+    markdownId: m.markdownId,
+    batchId: m.batchId,
+    productId: m.productId,
+    productName: product?.name ?? "",
+    sku: product?.sku ?? "",
+    originalPrice: m.originalPrice,
+    discountPercent: m.discountPercent,
+    discountedPrice: m.discountedPrice,
+    initialQuantity: m.initialQuantity,
+    quantitySold: m.quantitySold,
+    remainingQuantity: batch?.quantity ?? 0,
+    sellThroughPercent: m.initialQuantity > 0 ? Math.round((m.quantitySold / m.initialQuantity) * 1000) / 10 : 0,
+    status: m.status,
+    markedDownAt: m.markedDownAt,
+  };
+}
+
+function listMarkdowns(db, ids) {
+  return (db.markdowns ?? [])
+    .filter((m) => !ids || ids.includes(m.markdownId))
+    .sort((a, b) => b.markedDownAt.localeCompare(a.markedDownAt) || b.markdownId - a.markdownId)
+    .map((m) => markdownOut(db, m));
+}
+
+function applyMarkdowns(db, now) {
+  const rules = activeRules(db);
+  db.markdowns ??= [];
+  db.nextIds.markdown ??= 1;
+  const touched = [];
+  if (rules.length === 0) return { applied: 0, markdowns: [] };
+
+  const batches = db.batches
+    .filter((b) => b.quantity > 0 && daysBetween(now, b.expiryDate) >= 0)
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.batchId - b.batchId);
+
+  for (const batch of batches) {
+    const product = db.products.find((p) => p.productId === batch.productId);
+    if (!product || !product.active) continue;
+    const daysLeft = daysBetween(now, batch.expiryDate);
+
+    const matches = [];
+    for (const r of rules) {
+      if (daysLeft > r.daysBeforeExpiry) continue;
+      if (r.productId !== null) {
+        if (r.productId === product.productId) matches.push([3, r.discountPercent, r]);
+      } else if (r.category) {
+        if (r.category.toLowerCase() === product.category.toLowerCase()) matches.push([2, r.discountPercent, r]);
+      } else {
+        matches.push([1, r.discountPercent, r]);
+      }
+    }
+    if (matches.length === 0) continue;
+    matches.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+    const best = matches[0][2];
+    const discountedPrice = cents((product.sellingPrice * (100 - best.discountPercent)) / 100);
+
+    const existing = activeMarkdown(db, batch.batchId);
+    if (existing) {
+      if (best.discountPercent <= existing.discountPercent) continue;
+      existing.ruleId = best.ruleId;
+      existing.discountPercent = best.discountPercent;
+      existing.discountedPrice = discountedPrice;
+      touched.push(existing.markdownId);
+    } else {
+      const md = {
+        markdownId: db.nextIds.markdown++,
+        batchId: batch.batchId,
+        productId: product.productId,
+        ruleId: best.ruleId,
+        originalPrice: product.sellingPrice,
+        discountPercent: best.discountPercent,
+        discountedPrice,
+        initialQuantity: batch.quantity,
+        quantitySold: 0,
+        status: "active",
+        markedDownAt: now.toISOString(),
+      };
+      db.markdowns.push(md);
+      touched.push(md.markdownId);
+    }
+  }
+  return { applied: touched.length, markdowns: listMarkdowns(db, touched) };
 }
 
 // ---------- removals (FR-13) and stock counts (FR-9) ----------
@@ -451,6 +598,13 @@ const routes = [
   // Physical stock count (FR-9): the batch takes the counted quantity; variance is kept for audit.
   ["POST", /^\/stock-counts$/, [ADMIN, MANAGER, STAFF], (_m, body, user, db, now) => recordStockCount(db, body ?? {}, user, now)],
 
+  // Markdown rules and marked-down batches (FR-14)
+  ["GET", /^\/markdown-rules$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db) => activeRules(db)],
+  ["POST", /^\/markdown-rules$/, [ADMIN, MANAGER], (_m, body, user, db, now) => createMarkdownRule(db, body ?? {}, user, now)],
+  ["DELETE", /^\/markdown-rules\/(\d+)$/, [ADMIN, MANAGER], ([, id], _b, _u, db) => deleteMarkdownRule(db, id)],
+  ["POST", /^\/markdowns\/apply$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db, now) => applyMarkdowns(db, now)],
+  ["GET", /^\/markdowns$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db) => listMarkdowns(db)],
+
   ["POST", /^\/sales$/, [ADMIN, CASHIER], (_m, body, _u, db, now) => recordSale(db, body ?? {}, now)],
   ["POST", /^\/sales\/csv$/, [ADMIN, CASHIER], async (_m, body, _u, db, now) => {
     const file = body instanceof FormData ? body.get("file") : null;
@@ -613,7 +767,7 @@ function deviceReading(db, { unitId, type, value }, now) {
 
 const DELAY_MS = 150;
 // POST routes that create a resource answer 201 (login, CSV import answer 200).
-const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales", "/users", "/removals", "/stock-counts"]);
+const CREATED = new Set(["/products", "/suppliers", "/batches", "/restocks", "/sales", "/users", "/removals", "/stock-counts", "/markdown-rules"]);
 
 /** Mock transport: returns {status, body} like an HTTP response. */
 export async function mockRequest(method, path, body, token, now = new Date()) {

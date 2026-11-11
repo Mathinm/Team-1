@@ -17,6 +17,7 @@ export const MENU = [
   { path: "/stock", label: "Stock & FEFO", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/stock-count", label: "Stock count", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/removals", label: "Waste & removals", roles: [ADMIN, MANAGER, STAFF] },
+  { path: "/markdowns", label: "Markdowns", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/sales", label: "Sales", roles: [ADMIN, CASHIER] },
   { path: "/alerts", label: "Alerts", roles: [ADMIN, MANAGER, STAFF] },
   { path: "/refrigeration", label: "Refrigeration", roles: [ADMIN, MANAGER, STAFF] },
@@ -34,6 +35,8 @@ export const PERMISSIONS = {
   recordSale: [ADMIN, CASHIER],
   acknowledgeAlerts: [ADMIN, MANAGER],
   editFridgeLimits: [ADMIN, MANAGER], // FR-15
+  manageMarkdownRules: [ADMIN, MANAGER], // FR-14: add and delete rules
+  applyMarkdowns: [ADMIN, MANAGER, STAFF], // FR-14: run the rules on near-expiry batches
   manageUsers: [ADMIN], // SEC-4: user administration is Admin-only
 };
 

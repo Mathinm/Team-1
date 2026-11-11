@@ -9,6 +9,7 @@ import ProductsPage from "./pages/ProductsPage.jsx";
 import StockPage from "./pages/StockPage.jsx";
 import StockCountPage from "./pages/StockCountPage.jsx";
 import RemovalsPage from "./pages/RemovalsPage.jsx";
+import MarkdownsPage from "./pages/MarkdownsPage.jsx";
 import SalesPage from "./pages/SalesPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ReportsPage from "./pages/ReportsPage.jsx";
@@ -31,6 +32,7 @@ function AppRoutes() {
         <Route path="/stock" element={guard(<StockPage />)} />
         <Route path="/stock-count" element={guard(<StockCountPage />)} />
         <Route path="/removals" element={guard(<RemovalsPage />)} />
+        <Route path="/markdowns" element={guard(<MarkdownsPage />)} />
         <Route path="/sales" element={guard(<SalesPage />)} />
         <Route path="/alerts" element={guard(<AlertsPage />)} />
         <Route path="/refrigeration" element={guard(<RefrigerationPage />)} />

@@ -72,6 +72,7 @@ const PAGE_ART = {
   "/stock": ["Inventory", "/img/hero-veg.jpg"],
   "/stock-count": ["Inventory", "/img/login.jpg"],
   "/removals": ["Inventory", "/img/hero-veg.jpg"],
+  "/markdowns": ["Inventory", "/img/categories/fruits.jpg"],
   "/sales": ["Inventory", "/img/hero-fruits.jpg"],
   "/alerts": ["Monitoring", "/img/login.jpg"],
   "/refrigeration": ["Monitoring", "/img/categories/dairy.jpg"],

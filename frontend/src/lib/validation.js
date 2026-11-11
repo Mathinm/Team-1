@@ -167,3 +167,30 @@ export function validateStockCount({ batchId, counted, reason, unit }) {
 export function countVariance(system, counted) {
   return Math.round((Number(counted) - Number(system)) * 1000) / 1000;
 }
+
+// ---------- Markdown rules (FR-14) ----------
+
+/** Shown as a hint only. The server decides the real maximum and answers 422 above it. */
+export const MARKDOWN_MAX_HINT = 40;
+
+/**
+ * Checks a new rule before sending. A discount above the store maximum is NOT blocked here:
+ * the backend owns that limit (max_markdown_percent) and its message is shown to the person.
+ */
+export function validateMarkdownRule({ scope, productId, category, days, discount }) {
+  const e = {};
+  if (scope === "category") {
+    if (isBlank(category)) e.category = "Choose a category";
+  } else if (isBlank(productId)) {
+    e.productId = "Choose a product";
+  }
+  const d = num(days);
+  if (Number.isNaN(d) || !Number.isInteger(d) || d < 0) e.days = "Whole number of days, 0 or more";
+  else if (d > 365) e.days = "At most 365 days";
+  const pct = num(discount);
+  if (Number.isNaN(pct)) e.discount = "Enter the discount in %";
+  else if (pct <= 0) e.discount = "Discount must be above 0%";
+  else if (pct > 100) e.discount = "Discount cannot be above 100%";
+  else if (Math.round(pct * 100) / 100 !== pct) e.discount = "At most 2 decimal places";
+  return e;
+}
