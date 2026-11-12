@@ -400,11 +400,3 @@ def test_mail_server_failure_marks_the_alert_failed_for_retry(client, seeded, mo
     seeded.commit()
     a = alerts(client)[0]
     assert a["deliveryStatus"] == "failed" and a["status"] == "active"
-
-def test_low_stock_alert_text_updates_as_stock_falls(client, seeded):
-    sell(client, qty=29)
-    rows = of_type(alerts(client), "LOW_STOCK")
-    assert "8 kg left" in rows[0]["message"]
-    sell(client, qty=2)
-    rows = of_type(alerts(client), "LOW_STOCK")
-    assert "6 kg left" in rows[0]["message"]

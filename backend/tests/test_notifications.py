@@ -193,12 +193,13 @@ def test_cashier_cannot_read_notifications(client):
 
 def test_already_expired_batch_gets_expiry_alert_on_receive(client, seeded):
     today = store_today()
+    past = datetime.now(timezone.utc) - timedelta(days=5)
     body = {
         "productId": 1,
         "supplierId": 1,
         "quantity": 10,
         "unit": "kg",
-        "receivedAt": datetime.now(timezone.utc).isoformat(),
+        "receivedAt": past.isoformat(),
         "expiryDate": str(today - timedelta(days=1)),
     }
     r = client.post("/api/batches", json=body, headers=auth("staff1", "Inventory Staff"))
