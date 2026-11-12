@@ -387,14 +387,14 @@ def test_future_reading_is_rejected(client, sensor_key):
             "value": 4.0,
             "recordedAt": future.isoformat(),
         },
-        headers={"X-API-Key": sensor_key},
+        headers={"X-Device-Key": sensor_key},
     )
     assert r.status_code == 400
     assert "Reading time cannot be in the future" in r.json()["error"]["message"]
 
 
 def test_editing_limits_and_readings_is_case_insensitive(client, db, sensor_key):
-    make_unit(client, sensor_key, unit_id="Fridge-1")
+    make_unit(client, sensor_key, unit="Fridge-1")
     r = client.put(
         "/api/refrigeration/units/fridge-1",
         json={"tempMin": 1, "tempMax": 5},

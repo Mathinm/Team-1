@@ -92,11 +92,7 @@ def raise_alert(
     same problem from being reported again and again until it has been resolved.
     """
     store_id = get_settings().store_id
-    existing = db.scalar(select(Alert).where(Alert.store_id == store_id, Alert.open_key == key))
-    if existing is not None:
-        if existing.message != message[:255]:
-            existing.message = message[:255]
-            log.info("ALERT_UPDATED type=%s key=%s message=%s", type, key, message)
+    if db.scalar(select(Alert.alert_id).where(Alert.store_id == store_id, Alert.open_key == key)):
         return None
     alert = Alert(
         store_id=store_id, type=type, severity=severity, message=message[:255],

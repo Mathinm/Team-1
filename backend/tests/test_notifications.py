@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -191,12 +191,18 @@ def test_cashier_cannot_read_notifications(client):
     assert r.status_code == 403
 
 
-def test_already_expired_batch_gets_expiry_notification_and_alert(client, seeded, db):
-    batch = db.get(Batch, 101)
-    batch.expiry_date = store_today() - timedelta(days=1)
-    db.commit()
-    created = create_expiry_notifications(db, today=store_today())
-    assert created >= 1
+def test_already_expired_batch_gets_expiry_alert_on_receive(client, seeded):
+    today = store_today()
+    body = {
+        "productId": 1,
+        "supplierId": 1,
+        "quantity": 10,
+        "unit": "kg",
+        "receivedAt": datetime.now(timezone.utc).isoformat(),
+        "expiryDate": str(today - timedelta(days=1)),
+    }
+    r = client.post("/api/batches", json=body, headers=auth("staff1", "Inventory Staff"))
+    assert r.status_code == 201
     alerts_res = client.get("/api/alerts", headers=auth("alert-reader", "Manager"))
     assert alerts_res.status_code == 200
     assert any(a["type"] == "EXPIRY" and "Tomato" in a["message"] for a in alerts_res.json())
