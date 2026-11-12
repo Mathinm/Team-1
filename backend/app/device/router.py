@@ -4,7 +4,7 @@ Every event carries an eventId. A resend (offline sync) of an event that is alre
 answers 409 and changes nothing, so retries never double-count a sale or a reading.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -69,6 +69,10 @@ def device_reading(
     num, text = parse_reading_value(body.type, body.value)
     if not body.unitId.strip():
         raise ApiError(400, "INVALID", "unitId must not be blank")
+    recorded_at = to_utc(body.recordedAt)
+    now = datetime.now(timezone.utc)
+    if recorded_at > now + timedelta(minutes=5):
+        raise ApiError(400, "INVALID", "Reading time cannot be in the future")
     if db.scalar(select(SensorReading.reading_id).where(
             SensorReading.device_id == device.device_id, SensorReading.event_id == body.eventId)):
         raise _duplicate(body.eventId)
@@ -80,8 +84,8 @@ def device_reading(
         type=body.type,
         value_num=num,
         value_text=text,
-        recorded_at=to_utc(body.recordedAt),
-        received_at=datetime.now(timezone.utc),
+        recorded_at=recorded_at,
+        received_at=now,
     )
     db.add(reading_row)
     try:

@@ -184,3 +184,19 @@ def test_expiry_notifications_appear_in_alerts(client, seeded, db):
     expiry_alerts = [a for a in alerts_res.json() if a["type"] == "EXPIRY"]
     assert len(expiry_alerts) >= 1
     assert "Tomato" in expiry_alerts[0]["message"]
+
+
+def test_cashier_cannot_read_notifications(client):
+    r = client.get("/api/notifications", headers=auth("cashier1", "Cashier"))
+    assert r.status_code == 403
+
+
+def test_already_expired_batch_gets_expiry_notification_and_alert(client, seeded, db):
+    batch = db.get(Batch, 101)
+    batch.expiry_date = store_today() - timedelta(days=1)
+    db.commit()
+    created = create_expiry_notifications(db, today=store_today())
+    assert created >= 1
+    alerts_res = client.get("/api/alerts", headers=auth("alert-reader", "Manager"))
+    assert alerts_res.status_code == 200
+    assert any(a["type"] == "EXPIRY" and "Tomato" in a["message"] for a in alerts_res.json())

@@ -35,11 +35,16 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
     dialect = db.get_bind().dialect.name
 
     for expiry_date, notification_type, title in targets:
+        condition = (
+            Batch.expiry_date <= expiry_date
+            if notification_type == "expiry"
+            else Batch.expiry_date == expiry_date
+        )
         batches = db.execute(
             select(Batch, Product)
             .join(Product, Product.product_id == Batch.product_id)
             .where(
-                Batch.expiry_date == expiry_date,
+                condition,
                 Batch.store_id == settings.store_id,
                 Batch.quantity > 0,
             )
@@ -48,16 +53,31 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
         for batch, product in batches:
             unit_str = product.unit if product and product.unit else "units"
             qty_str = format(Decimal(str(batch.quantity)).normalize(), "f")
-            time_str = "tomorrow" if notification_type == "pre_expiry" else "today"
+            if notification_type == "pre_expiry":
+                time_str = "tomorrow"
+                title_text = title
+                verb = "expires"
+            elif batch.expiry_date < today:
+                time_str = (
+                    "yesterday"
+                    if batch.expiry_date == today - timedelta(days=1)
+                    else f"on {batch.expiry_date.isoformat()}"
+                )
+                title_text = "Batch expired"
+                verb = "expired"
+            else:
+                time_str = "today"
+                title_text = title
+                verb = "expires"
 
             values = {
                 "store_id": settings.store_id,
                 "batch_id": batch.batch_id,
                 "removal_id": None,
                 "notification_type": notification_type,
-                "title": title,
+                "title": title_text,
                 "message": (
-                    f"{product.name} batch {batch.batch_id} expires on "
+                    f"{product.name} batch {batch.batch_id} {verb} on "
                     f"{batch.expiry_date.isoformat()}. "
                     f"Remaining quantity: {qty_str} {unit_str}."
                 ),
@@ -68,7 +88,7 @@ def create_expiry_notifications(db: Session, today: date | None = None) -> int:
             severity = "warning" if notification_type == "pre_expiry" else "critical"
             alert_key = f"{notification_type}:{batch.batch_id}"
             alert_msg = (
-                f"{product.name} batch {batch.batch_id} expires {time_str} "
+                f"{product.name} batch {batch.batch_id} {verb} {time_str} "
                 f"({qty_str} {unit_str} remaining)"
             )
             raise_alert(

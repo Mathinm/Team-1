@@ -132,7 +132,22 @@ def update_product(
     db: Session = Depends(get_db),
 ):
     product = _find_product(db, product_id)
-    for field, value in _values(body).items():
+    vals = _values(body)
+    if vals["unit"] != product.unit:
+        has_stock = db.scalar(
+            select(func.coalesce(func.sum(Batch.quantity), 0) > 0).where(
+                Batch.product_id == product.product_id,
+                Batch.store_id == product.store_id,
+                Batch.quantity > 0,
+            )
+        )
+        if has_stock:
+            raise ApiError(
+                400,
+                "INVALID",
+                f"Cannot change unit of '{product.name}' while it has stock",
+            )
+    for field, value in vals.items():
         setattr(product, field, value)
     refresh_after_change(db, product.product_id)  # a new threshold applies at once
     try:

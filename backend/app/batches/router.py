@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Batch, Product, Supplier
+from app.notifications.service import create_expiry_notifications
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, get_current_user, require_roles
 from app.sales.fefo import UNITS_WHOLE_ONLY, check_quantity, store_today, to_utc
 
@@ -118,6 +119,9 @@ def receive_batch(
         expiry_date=body.expiryDate,
     )
     db.add(batch)
+    db.flush()
+    if body.expiryDate <= _received_day(datetime.now(timezone.utc)):
+        create_expiry_notifications(db)
     refresh_after_change(db, product.product_id)  # close LOW_STOCK once stock is back up
     db.commit()
     return BatchCreated(batchId=batch.batch_id, newStock=_stock(db, product.product_id))
@@ -155,6 +159,9 @@ def restock(
         expiry_date=today + timedelta(days=product.shelf_life_days),
     )
     db.add(batch)
+    db.flush()
+    if body.expiryDate <= _received_day(datetime.now(timezone.utc)):
+        create_expiry_notifications(db)
     refresh_after_change(db, product.product_id)  # close LOW_STOCK once stock is back up
     db.commit()
     return BatchCreated(batchId=batch.batch_id, newStock=_stock(db, product.product_id))

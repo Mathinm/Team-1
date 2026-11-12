@@ -44,4 +44,22 @@ describe("refrigeration safety limits (FR-15 mock API)", () => {
     }, manager);
     expect(invalidDoorLimit.status).toBe(400);
   });
+
+  it("edits limits with case-insensitive unit id (N12)", async () => {
+    const manager = await tokenFor("manager1", "manager123");
+    const updated = await call("PUT", "/refrigeration/units/fr-1", {
+      tempMin: 2, tempMax: 6,
+    }, manager);
+    expect(updated.status).toBe(200);
+    expect(updated.body.tempMin).toBe(2);
+  });
+
+  it("rejects future sensor readings (N2)", async () => {
+    const future = new Date(NOW.getTime() + 10 * 60 * 1000).toISOString();
+    const res = await call("POST", "/device/readings", {
+      unitId: "FR-1", type: "temperature", value: 4, recordedAt: future,
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/future/);
+  });
 });

@@ -44,9 +44,12 @@ export function formatDate(value) {
 
 export function formatDateTime(value) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("en-IN", {
+  const d = new Date(value);
+  const isDifferentYear = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
+    ...(isDifferentYear ? { year: "numeric" } : {}),
     hour: "2-digit",
     minute: "2-digit",
   });

@@ -373,3 +373,38 @@ def test_tightening_the_limit_alerts_on_the_current_temperature(client, db, sens
     client.put("/api/refrigeration/units/Fridge-9", json={"tempMax": 9},
                headers=auth("manager1", "Manager"))
     assert [a["status"] for a in alerts(client)] == ["resolved"]
+
+
+def test_future_reading_is_rejected(client, sensor_key):
+    now = datetime.now(timezone.utc)
+    future = now + timedelta(days=365)
+    r = client.post(
+        "/api/device/readings",
+        json={
+            "eventId": "evt-future-01",
+            "unitId": "Fridge-1",
+            "type": "temperature",
+            "value": 4.0,
+            "recordedAt": future.isoformat(),
+        },
+        headers={"X-API-Key": sensor_key},
+    )
+    assert r.status_code == 400
+    assert "Reading time cannot be in the future" in r.json()["error"]["message"]
+
+
+def test_editing_limits_and_readings_is_case_insensitive(client, db, sensor_key):
+    make_unit(client, sensor_key, unit_id="Fridge-1")
+    r = client.put(
+        "/api/refrigeration/units/fridge-1",
+        json={"tempMin": 1, "tempMax": 5},
+        headers=auth("manager1", "Manager"),
+    )
+    assert r.status_code == 200
+    assert r.json()["tempMin"] == 1
+    assert r.json()["tempMax"] == 5
+    readings = client.get(
+        "/api/refrigeration/units/fridge-1/readings",
+        headers=auth("staff1", "Inventory Staff"),
+    )
+    assert readings.status_code == 200

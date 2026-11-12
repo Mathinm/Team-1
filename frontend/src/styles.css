@@ -483,6 +483,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .chart__label { font-size: 11px; fill: var(--muted); }
 .chart__line { fill: none; stroke: var(--primary); stroke-width: 2; }
 .chart__out { fill: var(--danger-strong); }
+.chart__dot { fill: var(--primary); }
 .chart-stats { margin-top: 12px; margin-bottom: 0; }
 .demo-controls { border-style: dashed; }
 
