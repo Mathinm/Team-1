@@ -50,17 +50,18 @@ def mask_email(email: str) -> str:
 
 
 def send_code(user: User, now: datetime | None = None) -> bool:
-    """Email a new code unless one was sent in the last OTP_RESEND_SECONDS. True if sent."""
+    """Email a new code unless one was sent in the last OTP_RESEND_SECONDS. True if sent.
+
+    Raises app.notify.EmailError if the email can't be sent. The code is then NOT stored, so
+    the user can try again at once (the resend wait only starts after a successful email).
+    """
     s = get_settings()
     now = now or datetime.now(timezone.utc)
     if user.otp_sent_at and now - _aware(user.otp_sent_at) < timedelta(
             seconds=s.otp_resend_seconds):
         return False
     code = f"{secrets.randbelow(10**DIGITS):0{DIGITS}d}"
-    user.otp_code_hash = _hash(user, code)
-    user.otp_sent_at = now
-    user.otp_expires_at = now + timedelta(minutes=s.otp_expire_minutes)
-    send_email(
+    send_email(  # first: if this raises EmailError, nothing about the code is kept
         user.email,
         "Your PMS login code",
         f"Hello {user.name},\n\n"
@@ -68,6 +69,9 @@ def send_code(user: User, now: datetime | None = None) -> bool:
         f"It expires in {s.otp_expire_minutes} minutes and works once. If you did not just try "
         f"to log in to PMS, someone knows your password: tell your Admin and change it.\n",
     )
+    user.otp_code_hash = _hash(user, code)
+    user.otp_sent_at = now
+    user.otp_expires_at = now + timedelta(minutes=s.otp_expire_minutes)
     log.info("2FA code emailed: user=%s", user.user_id)  # never log the code
     return True
 

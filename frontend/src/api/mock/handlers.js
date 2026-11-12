@@ -421,6 +421,9 @@ function confirmReset(db, { token, newPassword } = {}, now) {
   const reset = (db.resets ?? []).find((r) => r.token === token && r.expires > now.getTime());
   const user = reset && usersOf(db).find((u) => u.userId === reset.userId && u.active);
   if (!user) fail(400, "RESET_LINK_INVALID", RESET_INVALID);
+  // T5: same rule as the backend; the link stays usable so another password can be tried
+  if (newPassword === user.password)
+    fail(400, "SAME_PASSWORD", "New password must be different from your current password");
   user.password = newPassword;
   db.resets = db.resets.filter((r) => r !== reset);
   return { message: "Your password has been changed. Log in with the new password." };

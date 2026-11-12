@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import User, UserSession
+from app.notify import EmailError
 from app.rbac import (
     ROLE_MENUS,
     CurrentUser,
@@ -33,6 +34,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 log = logging.getLogger("pms.security")
 
 INVALID_LOGIN = "Invalid user ID or password"
+CODE_NOT_SENT = "Couldn't send the login code, try again in a minute"
 
 
 @router.post("/login", response_model=LoginOut)
@@ -56,7 +58,12 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
     if requires_otp(user):  # NFR-10: Manager and Admin also need the code we email them
         if not body.otpCode:
-            send_code(user)
+            try:
+                send_code(user)
+            except EmailError:  # wrong SMTP password, network down ...: a clean 503, not a 500
+                db.rollback()
+                log.warning("2FA code could not be emailed: user=%s", user.user_id)
+                raise ApiError(503, "EMAIL_UNAVAILABLE", CODE_NOT_SENT) from None
             db.commit()
             raise ApiError(401, "OTP_REQUIRED",
                            f"We emailed a login code to {mask_email(user.email)}. Enter it below.",

@@ -8,6 +8,10 @@
    Sets the new password. The link works once and expires after PASSWORD_RESET_EXPIRE_MINUTES
    (default 30). Used, expired or unknown links answer 400 RESET_LINK_INVALID.
 
+If the email can't be sent (SMTP down), the link is cancelled, the failure is written to the
+audit log, and the answer is still the same 202: a different answer would reveal that the
+user ID exists. The new password must differ from the current one (400 SAME_PASSWORD).
+
 Only a SHA-256 hash of the token is stored, so a database copy cannot be used to reset anyone's
 password. A successful reset ends all the user's sessions (a stolen login is thrown out). A
 locked account stays locked: SEC-3 says only an Admin unlocks it.
@@ -23,18 +27,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.auth.passwords import hash_password
+from app.auth.passwords import hash_password, verify_password
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import PasswordReset, User, UserSession
-from app.notify import send_email
+from app.notify import EmailError, send_email
 
 router = APIRouter(prefix="/api/auth/password-reset", tags=["auth"])
 audit = logging.getLogger("pms.audit")
 
 SENT = "If that user ID exists, a reset link has been sent to its registered email."
 LINK_INVALID = "This reset link is invalid, already used or expired. Ask for a new one."
+SAME_PASSWORD = "New password must be different from your current password"
 
 
 class ResetRequestIn(BaseModel):
@@ -92,18 +97,26 @@ def request_reset(body: ResetRequestIn, db: Session = Depends(get_db)):
     _cancel_open_links(db, user, now)
     db.add(PasswordReset(user_pk=user.id, token_hash=_hash(token), created_at=now,
                          expires_at=now + timedelta(minutes=s.password_reset_expire_minutes)))
-    db.commit()
+    db.flush()  # saved for good only after the email went out (commit below)
 
     link = f"{s.frontend_url.rstrip('/')}/reset-password?token={token}"
-    send_email(
-        user.email,
-        "Reset your PMS password",
-        f"Hello {user.name},\n\n"
-        f"Someone (hopefully you) asked to reset the password for PMS user ID {user.user_id}.\n"
-        f"Open this link to choose a new password:\n\n{link}\n\n"
-        f"The link works once and expires in {s.password_reset_expire_minutes} minutes. If you "
-        f"did not ask for this, ignore this email; your password stays the same.\n",
-    )
+    try:
+        send_email(
+            user.email,
+            "Reset your PMS password",
+            f"Hello {user.name},\n\n"
+            f"Someone (hopefully you) asked to reset the password for PMS user ID "
+            f"{user.user_id}.\nOpen this link to choose a new password:\n\n{link}\n\n"
+            f"The link works once and expires in {s.password_reset_expire_minutes} minutes. "
+            f"If you did not ask for this, ignore this email; your password stays the same.\n",
+        )
+    except EmailError:
+        # Nobody received this link: undo it (older links keep working, no resend wait), log
+        # it, and answer exactly as for an unknown user ID (N4: don't reveal the ID exists).
+        db.rollback()
+        audit.warning("PASSWORD_RESET_REQUESTED user=%s result=email-failed", user.user_id)
+        return MessageOut(message=SENT)
+    db.commit()
     audit.info("PASSWORD_RESET_REQUESTED user=%s result=emailed", user.user_id)  # never the link
     return MessageOut(message=SENT)
 
@@ -120,6 +133,11 @@ def confirm_reset(body: ResetConfirmIn, db: Session = Depends(get_db)):
         reset.used_at = now
         db.commit()
         raise ApiError(400, "RESET_LINK_INVALID", LINK_INVALID)
+
+    if verify_password(body.newPassword, user.password_hash):
+        # The link stays usable, so the user can pick another password straight away.
+        audit.info("PASSWORD_RESET_FAILED user=%s reason=same-password", user.user_id)
+        raise ApiError(400, "SAME_PASSWORD", SAME_PASSWORD)
 
     user.password_hash = hash_password(body.newPassword)
     user.failed_logins = 0
