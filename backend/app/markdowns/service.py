@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -49,6 +49,26 @@ def create_rule(db: Session, data: MarkdownRuleCreate, user_id: str) -> dict:
         product = db.get(Product, data.productId)
         if product is None:
             raise ApiError(404, "NOT_FOUND", f"Product #{data.productId} not found")
+        # A product rule applies to that product only; a category that contradicts it is
+        # almost certainly a mistake (N11), so refuse it instead of silently ignoring it.
+        if data.category is not None and (
+            data.category.strip().lower() != product.category.strip().lower()
+        ):
+            raise ApiError(
+                400, "INVALID",
+                f"{product.name} is in category '{product.category}', not "
+                f"'{data.category.strip()}': choose the product or the category",
+            )
+    if data.category is not None:
+        # N11: a misspelt category would save a rule that never matches anything.
+        known = db.scalar(
+            select(Product.category).where(
+                Product.store_id == store_id,
+                func.lower(Product.category) == data.category.strip().lower(),
+            ).limit(1)
+        )
+        if known is None:
+            raise ApiError(400, "INVALID", f"Unknown category '{data.category.strip()}'")
 
     name = data.name or f"{data.discountPercent}% off at {data.daysBeforeExpiry}d to expiry"
     rule = MarkdownRule(
@@ -225,7 +245,8 @@ def list_markdowns(
             "quantitySold": sold,
             "remainingQuantity": remaining,
             "sellThroughPercent": sell_through,
-            "status": md.status,
+            # A batch emptied before N8 was fixed may still say "active"; show it as ended.
+            "status": "ended" if md.status == "active" and remaining <= 0 else md.status,
             "markedDownAt": md.marked_down_at,
         })
     return results
@@ -238,6 +259,16 @@ def get_active_batch_markdown(db: Session, batch_id: int) -> Markdown | None:
             Markdown.status == "active",
         )
     )
+
+
+def end_markdown_if_empty(db: Session, batch: Batch) -> None:
+    """N8: a batch emptied by a removal or a stock count is no longer on markdown."""
+    if batch.quantity > 0:
+        return
+    md = get_active_batch_markdown(db, batch.batch_id)
+    if md is not None:
+        md.status = "ended"
+        db.flush()
 
 
 def record_markdown_sale(db: Session, batch_id: int, quantity_sold: Decimal):

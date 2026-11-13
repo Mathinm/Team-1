@@ -5,13 +5,17 @@ own transaction, so one bad row never blocks or rolls back the others.
 """
 
 import csv
+import hashlib
 import io
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.errors import ApiError
-from app.sales.fefo import record_sale
+from app.models import CsvImport
+from app.sales.fefo import max_backdate, record_sale
 from app.sales.schemas import CsvError, CsvResult
 
 MAX_BYTES = 1_000_000  # nginx in front of the API also limits bodies to 1 MB
@@ -31,9 +35,27 @@ def _parse_sold_at(text: str) -> datetime | None:
         ) from None
 
 
+def _check_not_imported(db: Session, store_id: int, digest: str) -> None:
+    """N10: the same file (byte for byte) is imported only once."""
+    done = db.scalar(
+        select(CsvImport).where(CsvImport.store_id == store_id, CsvImport.file_sha256 == digest)
+    )
+    if done is not None:
+        when = done.imported_at.strftime("%d %b %Y %H:%M") if done.imported_at else "earlier"
+        raise ApiError(
+            409,
+            "DUPLICATE_FILE",
+            f"This file was already imported ({when}, {done.imported} sales by "
+            f"{done.recorded_by}). Nothing was imported again.",
+        )
+
+
 def import_sales_csv(db: Session, raw: bytes, *, recorded_by: str) -> CsvResult:
     if len(raw) > MAX_BYTES:
         raise ApiError(400, "INVALID", "The CSV file is too large (limit 1 MB)")
+    store_id = get_settings().store_id
+    digest = hashlib.sha256(raw).hexdigest()
+    _check_not_imported(db, store_id, digest)
     try:
         text = raw.decode("utf-8-sig")  # Excel adds a BOM
     except UnicodeDecodeError:
@@ -74,10 +96,17 @@ def import_sales_csv(db: Session, raw: bytes, *, recorded_by: str) -> CsvResult:
                 sold_at=_parse_sold_at(cell(row, "soldat")),
                 source="csv",
                 recorded_by=recorded_by,
+                max_age=max_backdate(),
             )
             db.commit()
             imported += 1
         except ApiError as e:
             db.rollback()
             errors.append(CsvError(line=line, message=e.message))
+    if imported:
+        # A file where every row failed may be fixed in the shop (stock received) and sent
+        # again, so only a file that imported something is remembered.
+        db.add(CsvImport(store_id=store_id, file_sha256=digest, imported=imported,
+                         recorded_by=recorded_by))
+        db.commit()
     return CsvResult(imported=imported, failed=len(errors), errors=errors)

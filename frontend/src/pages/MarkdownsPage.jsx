@@ -325,6 +325,10 @@ export default function MarkdownsPage() {
                           <span className="badge badge--fresh"><span aria-hidden="true">●</span> Active</span>
                         ) : m.status === "sold_out" ? (
                           <span className="badge badge--info"><span aria-hidden="true">●</span> Sold out</span>
+                        ) : m.status === "ended" ? (
+                          <span className="badge badge--info" title="The batch was removed or counted to zero">
+                            <span aria-hidden="true">●</span> Ended
+                          </span>
                         ) : (
                           <span className="badge badge--info">{m.status}</span>
                         )}

@@ -20,18 +20,28 @@ from app.products.schemas import (
     SupplierOut,
 )
 from app.rbac import ADMIN, MANAGER, CurrentUser, get_current_user, require_roles
+from app.sales.fefo import store_today
 
 router = APIRouter(prefix="/api", tags=["products"])
 managers = require_roles(ADMIN, MANAGER)
 
 
-def _product_out(db: Session, product: Product, total=None) -> ProductOut:
-    """`total` is the product's stock when the caller already has it (see list_products)."""
+def _product_out(db: Session, product: Product, total=None, sellable=None) -> ProductOut:
+    """`total` / `sellable` are the product's stock when the caller already has them (see
+    list_products). Sellable stock leaves out expired batches, which can't be sold (N7)."""
     if total is None:
         total = db.scalar(
             select(func.coalesce(func.sum(Batch.quantity), 0)).where(
                 Batch.product_id == product.product_id,
                 Batch.store_id == product.store_id,
+            )
+        )
+    if sellable is None:
+        sellable = db.scalar(
+            select(func.coalesce(func.sum(Batch.quantity), 0)).where(
+                Batch.product_id == product.product_id,
+                Batch.store_id == product.store_id,
+                Batch.expiry_date >= store_today(),
             )
         )
     return ProductOut(
@@ -49,6 +59,7 @@ def _product_out(db: Session, product: Product, total=None) -> ProductOut:
         lowStockThreshold=product.low_stock_threshold,
         active=product.active,
         stock=float(total or 0),
+        sellableStock=float(sellable or 0),
     )
 
 
@@ -100,7 +111,17 @@ def list_products(
             .group_by(Batch.product_id)
         ).all()
     )
-    return [_product_out(db, p, stock.get(p.product_id, 0)) for p in products]
+    sellable = dict(
+        db.execute(
+            select(Batch.product_id, func.sum(Batch.quantity))
+            .where(Batch.store_id == store_id, Batch.expiry_date >= store_today())
+            .group_by(Batch.product_id)
+        ).all()
+    )
+    return [
+        _product_out(db, p, stock.get(p.product_id, 0), sellable.get(p.product_id, 0))
+        for p in products
+    ]
 
 
 @router.post("/products", status_code=201, response_model=ProductOut)

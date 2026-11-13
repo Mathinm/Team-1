@@ -81,8 +81,12 @@ function sellableStock(db, productId, now) {
     .reduce((sum, b) => sum + b.quantity, 0);
 }
 
-function withStock(db, product) {
-  return { ...product, stock: round(stockOf(db, product.productId)) };
+function withStock(db, product, now = new Date()) {
+  return {
+    ...product,
+    stock: round(stockOf(db, product.productId)),
+    sellableStock: round(sellableStock(db, product.productId, now)), // N7
+  };
 }
 
 const round = (n) => Math.round(n * 1000) / 1000;
@@ -106,6 +110,9 @@ function checkProductBody(b) {
 }
 
 /** FEFO deduction (FR-3, FR-7). Shared by manual, CSV and device sales. */
+const SALE_BACKDATE_HOURS = 48; // backend setting sale_backdate_hours (N1)
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
 export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
   const qty = Number(quantity);
   if (!sku || !Number.isFinite(qty) || qty <= 0)
@@ -114,14 +121,30 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
   if (!product) fail(404, "NOT_FOUND", `Unknown SKU ${sku}`);
   if (!product.active) fail(422, "INACTIVE", `${product.name} is deactivated`);
 
+  // N1: a sale's own time may be a little ahead (clock skew) or up to 48 h back, and expiry
+  // and received dates are judged on the day the sale happened.
+  let saleDay = now;
+  if (soldAt) {
+    const t = new Date(soldAt);
+    if (Number.isNaN(t.getTime())) fail(400, "INVALID", `Invalid soldAt '${soldAt}'`);
+    if (t.getTime() > now.getTime() + CLOCK_SKEW_MS) fail(400, "INVALID", "Sale time cannot be in the future");
+    if (t.getTime() < now.getTime() - SALE_BACKDATE_HOURS * 3600 * 1000)
+      fail(400, "INVALID", `Sale time is too far in the past (more than ${SALE_BACKDATE_HOURS} hours ago)`);
+    saleDay = t;
+  }
+
   const total = stockOf(db, product.productId);
-  const sellable = sellableStock(db, product.productId, now);
+  const unexpired = db.batches.filter(
+    (b) => b.productId === product.productId && b.quantity > 0 && daysBetween(saleDay, b.expiryDate) >= 0,
+  );
+  const eligible = unexpired
+    .filter((b) => !soldAt || !b.receivedAt || toISODate(new Date(b.receivedAt)) <= toISODate(saleDay))
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.batchId - b.batchId);
+  const sellable = eligible.reduce((sum, b) => sum + b.quantity, 0);
+  if (sellable <= 0 && unexpired.length > 0)
+    fail(422, "INSUFFICIENT_STOCK", `No stock of ${product.name} had been received yet at the sale time`);
   if (sellable <= 0 && total > 0) fail(422, "BATCH_EXPIRED", "Batch expired: no unexpired stock to sell");
   if (qty > sellable) fail(422, "INSUFFICIENT_STOCK", `Insufficient stock: only ${round(sellable)} ${product.unit} available`);
-
-  const eligible = db.batches
-    .filter((b) => b.productId === product.productId && b.quantity > 0 && daysBetween(now, b.expiryDate) >= 0)
-    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.batchId - b.batchId);
 
   let left = qty;
   let billed = 0;
@@ -131,9 +154,16 @@ export function recordSale(db, { sku, quantity, soldAt }, now = new Date()) {
     const take = Math.min(b.quantity, left);
     b.quantity = round(b.quantity - take);
     left = round(left - take);
-    batchesUsed.push({ batchId: b.batchId, qty: take, expiryDate: b.expiryDate });
-    // FR-14: a batch with an active markdown is billed at its discounted price.
+    // FR-14: a batch with an active markdown is billed at its discounted price (T8: shown per batch).
     const md = activeMarkdown(db, b.batchId);
+    batchesUsed.push({
+      batchId: b.batchId,
+      qty: take,
+      expiryDate: b.expiryDate,
+      unitPrice: md ? md.discountedPrice : product.sellingPrice,
+      originalPrice: product.sellingPrice,
+      discountPercent: md ? md.discountPercent : null,
+    });
     if (md) {
       billed += take * md.discountedPrice;
       md.quantitySold = round(md.quantitySold + take);
@@ -184,15 +214,23 @@ function createMarkdownRule(db, body, user, now) {
   if (discount > MAX_MARKDOWN_PERCENT)
     fail(422, "DISCOUNT_EXCEEDS_MAX", `Discount exceeds maximum ${MAX_MARKDOWN_PERCENT}%`);
   const hasProduct = productId !== undefined && productId !== null && productId !== "";
-  if (hasProduct && !db.products.some((p) => p.productId === Number(productId)))
-    fail(404, "NOT_FOUND", `Product #${productId} not found`);
+  const ruleProduct = hasProduct ? db.products.find((p) => p.productId === Number(productId)) : null;
+  if (hasProduct && !ruleProduct) fail(404, "NOT_FOUND", `Product #${productId} not found`);
+  const cat = category ? String(category).trim() : "";
+  if (cat) {
+    // N11: same checks as backend create_rule
+    if (ruleProduct && ruleProduct.category.toLowerCase() !== cat.toLowerCase())
+      fail(400, "INVALID", `${ruleProduct.name} is in category '${ruleProduct.category}', not '${cat}': choose the product or the category`);
+    if (!db.products.some((p) => p.category.toLowerCase() === cat.toLowerCase()))
+      fail(400, "INVALID", `Unknown category '${cat}'`);
+  }
 
   db.markdownRules ??= [];
   db.nextIds.markdownRule ??= 1;
   const rule = {
     ruleId: db.nextIds.markdownRule++,
     productId: hasProduct ? Number(productId) : null,
-    category: category ? String(category) : null,
+    category: cat || null,
     daysBeforeExpiry: days,
     discountPercent: discount,
     name: name?.trim() || `${discount}% off at ${days}d to expiry`,
@@ -229,7 +267,7 @@ function markdownOut(db, m) {
     quantitySold: m.quantitySold,
     remainingQuantity: batch?.quantity ?? 0,
     sellThroughPercent: m.initialQuantity > 0 ? Math.round((m.quantitySold / m.initialQuantity) * 1000) / 10 : 0,
-    status: m.status,
+    status: m.status === "active" && (batch?.quantity ?? 0) <= 0 ? "ended" : m.status,
     markedDownAt: m.markedDownAt,
   };
 }
@@ -327,15 +365,23 @@ function checkQty(value, product, { allowZero }) {
   return qty;
 }
 
+/** N8: a batch emptied by a removal or a stock count is no longer on markdown. */
+function endMarkdownIfEmpty(db, batch) {
+  if (batch.quantity > 0) return;
+  const md = activeMarkdown(db, batch.batchId);
+  if (md) md.status = "ended";
+}
+
 function recordRemoval(db, { batchId, qty: rawQty, reason: rawReason } = {}, user, now) {
   const reason = checkReason(rawReason, 40);
   const batch = batchById(db, batchId);
   const product = productById(db, batch.productId);
   const qty = checkQty(rawQty, product, { allowZero: false });
   if (qty > batch.quantity)
-    fail(422, "INSUFFICIENT_STOCK", `Insufficient stock: only ${batch.quantity} available in this batch`);
+    fail(422, "INSUFFICIENT_STOCK", `Insufficient stock: only ${batch.quantity} ${product.unit} left in B-${batch.batchId}`);
 
   batch.quantity = round(batch.quantity - qty);
+  endMarkdownIfEmpty(db, batch);
   const removal = {
     removalId: db.nextIds.removal++,
     batchId: batch.batchId,
@@ -352,7 +398,7 @@ function recordRemoval(db, { batchId, qty: rawQty, reason: rawReason } = {}, use
   raise(db, now, {
     type: "removal",
     severity: "info",
-    message: `${qty} ${product.unit} ${product.name} removed (${reason}) by ${user.userId}`,
+    message: `Stock removed: ${qty} ${product.unit} from ${product.name} B-${batch.batchId} (${reason})`,
     productId: product.productId,
   });
   return {
@@ -375,6 +421,7 @@ function recordStockCount(db, { batchId, countedQuantity, reason: rawReason } = 
   const system = batch.quantity;
   const variance = round(counted - system);
   batch.quantity = counted;
+  endMarkdownIfEmpty(db, batch);
   db.stockCounts ??= [];
   db.nextIds.stockCount ??= 1;
   const record = {
@@ -502,7 +549,7 @@ const routes = [
     return supplier;
   }],
 
-  ["GET", /^\/products$/, ANY, (_m, _b, _u, db) => db.products.map((x) => withStock(db, x))],
+  ["GET", /^\/products$/, ANY, (_m, _b, _u, db, now) => db.products.map((x) => withStock(db, x, now))],
   ["POST", /^\/products$/, [ADMIN, MANAGER], (_m, body, _u, db) => {
     checkProductBody(body);
     const sku = String(body.sku).trim().toUpperCase();
@@ -623,10 +670,15 @@ const routes = [
   ["GET", /^\/markdowns$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db) => listMarkdowns(db)],
 
   ["POST", /^\/sales$/, [ADMIN, CASHIER], (_m, body, _u, db, now) => recordSale(db, body ?? {}, now)],
-  ["POST", /^\/sales\/csv$/, [ADMIN, CASHIER], async (_m, body, _u, db, now) => {
+  ["POST", /^\/sales\/csv$/, [ADMIN, CASHIER], async (_m, body, user, db, now) => {
     const file = body instanceof FormData ? body.get("file") : null;
     if (!file) fail(400, "MISSING_FIELD", "Choose a CSV file");
     const text = typeof file === "string" ? file : await file.text();
+    // N10: same file twice is refused (the backend compares a SHA-256 of the bytes).
+    db.csvImports ??= [];
+    const done = db.csvImports.find((c) => c.text === text);
+    if (done)
+      fail(409, "DUPLICATE_FILE", `This file was already imported (${done.importedAt.slice(0, 16).replace("T", " ")}, ${done.imported} sales by ${done.recordedBy}). Nothing was imported again.`);
     const { headers, rows } = parseCsv(text);
     if (!headers.includes("sku") || !headers.includes("quantity"))
       fail(400, "INVALID", "CSV must have the columns sku and quantity");
@@ -641,6 +693,7 @@ const routes = [
         errors.push({ line, message: e.message });
       }
     }
+    if (imported) db.csvImports.push({ text, imported, recordedBy: user.userId, importedAt: now.toISOString() });
     return { imported, failed: errors.length, errors };
   }],
 

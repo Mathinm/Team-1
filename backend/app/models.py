@@ -410,8 +410,22 @@ class Markdown(Base):
     discounted_price: Mapped[Decimal] = mapped_column(MONEY)
     initial_quantity: Mapped[Decimal] = mapped_column(QTY)
     quantity_sold: Mapped[Decimal] = mapped_column(QTY, default=Decimal("0.000"))
-    status: Mapped[str] = mapped_column(String(20), default="active")  # active | sold_out
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | sold_out | ended
     marked_down_at: Mapped[datetime] = _now_col()
+
+
+class CsvImport(Base):
+    """A sales CSV that was imported (N10): uploading the same file again is refused, so a
+    double click or a re-upload can't record every sale twice."""
+
+    __tablename__ = "csv_imports"
+    __table_args__ = (UniqueConstraint("store_id", "file_sha256", name="uq_csv_imports_file"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(Integer, ForeignKey("stores.store_id"), default=1)
+    file_sha256: Mapped[str] = mapped_column(String(64))
+    imported: Mapped[int] = mapped_column(Integer)
+    recorded_by: Mapped[str] = mapped_column(String(80))
+    imported_at: Mapped[datetime] = _now_col()
 
 
 """End of model definitions."""

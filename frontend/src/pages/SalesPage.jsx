@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/endpoints.js";
 import { Banner, Field, PageHeader, money } from "../components/ui.jsx";
 import { formatDate } from "../lib/dates.js";
@@ -11,26 +11,63 @@ export default function SalesPage() {
   const [products, setProducts] = useState([]);
   const [error, setError] = useState("");
 
+  // Reloaded after every sale and CSV upload so "On hand" never shows stock that was just sold (T9).
+  const loadProducts = useCallback(
+    () =>
+      api
+        .listProducts()
+        .then((ps) => setProducts(ps.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name))))
+        .catch((e) => setError(e.message)),
+    [],
+  );
+
   useEffect(() => {
-    api
-      .listProducts()
-      .then((ps) => setProducts(ps.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name))))
-      .catch((e) => setError(e.message));
-  }, []);
+    loadProducts();
+  }, [loadProducts]);
 
   return (
     <section>
       <PageHeader title="Sales" subtitle="Record a sale by hand or upload a CSV. Stock is taken from the earliest-expiring batch first." />
       <Banner kind="error" onClose={() => setError("")}>{error}</Banner>
       <div className="two-col">
-        <ManualSale products={products} />
-        <CsvUpload />
+        <ManualSale products={products} onSold={loadProducts} />
+        <CsvUpload onImported={loadProducts} />
       </div>
     </section>
   );
 }
 
-function ManualSale({ products }) {
+/** "On hand" for the till: only unexpired stock can be sold, so expired stock is shown apart (N7). */
+export function onHandHint(product) {
+  if (!product) return undefined;
+  const sellable = product.sellableStock ?? product.stock;
+  const expired = Math.round((product.stock - sellable) * 1000) / 1000;
+  const base = `On hand: ${sellable} ${product.unit}`;
+  return expired > 0 ? `${base} (${expired} ${product.unit} expired, can't be sold)` : base;
+}
+
+/** One FEFO line of a sale: quantity, billed price, and the markdown if there was one (T8). */
+export function BatchLine({ b, unit }) {
+  return (
+    <li>
+      B-{b.batchId}: {b.qty} {unit}
+      {b.unitPrice !== undefined ? (
+        <>
+          {" "}× {money(b.unitPrice)}
+          {b.discountPercent ? (
+            <>
+              {" "}<s className="muted">{money(b.originalPrice)}</s>{" "}
+              <span className="badge badge--info">{b.discountPercent}% off</span>
+            </>
+          ) : null}
+        </>
+      ) : null}
+      {b.expiryDate ? <span className="muted"> · expires {formatDate(b.expiryDate)}</span> : null}
+    </li>
+  );
+}
+
+function ManualSale({ products, onSold }) {
   const [form, setForm] = useState({ sku: "", quantity: "" });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState("");
@@ -51,6 +88,7 @@ function ManualSale({ products }) {
       const res = await api.recordSale({ sku: form.sku, quantity: Number(form.quantity), unit: product?.unit });
       setResult({ ...res, productName: res.productName ?? product?.name, unit: res.unit ?? product?.unit });
       setForm((f) => ({ ...f, quantity: "" }));
+      onSold?.();
     } catch (ex) {
       // 422 Insufficient stock / Batch expired are shown as they come from the API.
       setError(ex.message);
@@ -76,7 +114,7 @@ function ManualSale({ products }) {
       <Field
         label={`Quantity${product ? ` (${product.unit})` : ""}`}
         error={errors.quantity}
-        hint={product ? `On hand: ${product.stock} ${product.unit}` : undefined}
+        hint={onHandHint(product)}
         id="sale-qty"
       >
         <input id="sale-qty" type="number" min="0" step="any" value={form.quantity} onChange={set("quantity")} />
@@ -91,10 +129,7 @@ function ManualSale({ products }) {
           <p className="muted small">Batches used (FEFO):</p>
           <ul className="plain">
             {result.batchesUsed.map((b) => (
-              <li key={b.batchId}>
-                B-{b.batchId}: {b.qty} {result.unit}
-                {b.expiryDate ? <span className="muted"> · expires {formatDate(b.expiryDate)}</span> : null}
-              </li>
+              <BatchLine key={b.batchId} b={b} unit={result.unit} />
             ))}
           </ul>
           <p>
@@ -106,7 +141,7 @@ function ManualSale({ products }) {
   );
 }
 
-function CsvUpload() {
+function CsvUpload({ onImported }) {
   const fileRef = useRef(null);
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
@@ -127,7 +162,9 @@ function CsvUpload() {
     }
     setBusy(true);
     try {
-      setResult(await api.uploadSalesCsv(file));
+      const res = await api.uploadSalesCsv(file);
+      setResult(res);
+      if (res.imported > 0) onImported?.();
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
     } catch (ex) {
