@@ -101,6 +101,8 @@ function checkProductBody(b) {
     fail(400, "INVALID", "Minimum temperature must be below maximum");
   if (Number(b.costPrice) <= 0 || Number(b.sellingPrice) <= 0)
     fail(400, "INVALID", "Prices must be positive");
+  if (Number(b.sellingPrice) < Number(b.costPrice))
+    fail(400, "INVALID", "Selling price cannot be lower than cost price");
 }
 
 /** FEFO deduction (FR-3, FR-7). Shared by manual, CSV and device sales. */
@@ -521,6 +523,10 @@ const routes = [
     const sku = String(body.sku).trim().toUpperCase();
     if (db.products.some((x) => x.sku === sku && x.productId !== product.productId))
       fail(409, "DUPLICATE", `SKU ${sku} already exists`);
+    if (body.unit && body.unit !== product.unit) {
+      const stock = totalStock(db, product.productId);
+      if (stock > 0) fail(400, "INVALID", `Cannot change unit of '${product.name}' while it has stock`);
+    }
     Object.assign(product, body, { sku, productId: product.productId, active: product.active });
     return withStock(db, product);
   }],
@@ -551,7 +557,7 @@ const routes = [
         daysToExpiry: daysBetween(now, b.expiryDate),
       }));
   }],
-  ["POST", /^\/batches$/, [ADMIN, MANAGER, STAFF], (_m, body, _u, db) => {
+  ["POST", /^\/batches$/, [ADMIN, MANAGER, STAFF], (_m, body, _u, db, now) => {
     const product = productById(db, body?.productId);
     if (!product.active) fail(422, "INACTIVE", `${product.name} is deactivated`);
     if (!db.suppliers.some((s) => s.supplierId === Number(body.supplierId)))
@@ -574,6 +580,14 @@ const routes = [
       expiryDate: body.expiryDate,
     };
     db.batches.push(batch);
+    if (body.expiryDate <= toISODate(now)) {
+      raise(db, now, {
+        type: "expired",
+        severity: "critical",
+        productId: product.productId,
+        message: `${product.name} batch ${batch.batchId} expired on ${batch.expiryDate}`,
+      });
+    }
     return { batchId: batch.batchId, newStock: round(stockOf(db, product.productId)) };
   }],
   // Restock (FR-4): a top-up without its own expiry label; expiry comes from
@@ -648,7 +662,7 @@ const routes = [
 
   // Refrigeration units (FR-15, FR-16)
   ["PUT", /^\/refrigeration\/units\/([A-Za-z0-9-]+)$/, [ADMIN, MANAGER], ([, id], body = {}, _u, db, now) => {
-    const unit = db.units.find((u) => u.unitId === id);
+    const unit = db.units.find((u) => u.unitId.toLowerCase() === id.toLowerCase());
     if (!unit) fail(404, "NOT_FOUND", "Unknown refrigeration unit");
     const nextMin = body.tempMin === undefined ? unit.tempMin : Number(body.tempMin);
     const nextMax = body.tempMax === undefined ? unit.tempMax : Number(body.tempMax);
@@ -661,11 +675,11 @@ const routes = [
     unit.tempMin = nextMin;
     unit.tempMax = nextMax;
     unit.doorOpenLimitMinutes = nextDoorLimit;
-    const latest = latestReading(db, id);
+    const latest = latestReading(db, unit.unitId);
     const outside = latest && (latest.value < nextMin || latest.value > nextMax);
-    const existing = db.alerts.find((a) => a.unitId === id && a.type === "temperature" && a.status !== "resolved");
+    const existing = db.alerts.find((a) => a.unitId && a.unitId.toLowerCase() === unit.unitId.toLowerCase() && a.type === "temperature" && a.status !== "resolved");
     if (outside && !existing) {
-      raise(db, now, { type: "temperature", severity: "critical", unitId: id,
+      raise(db, now, { type: "temperature", severity: "critical", unitId: unit.unitId,
         message: `${unit.name} temperature ${latest.value} °C is outside ${nextMin} to ${nextMax} °C` });
     } else if (!outside && existing) {
       existing.status = "resolved";
@@ -676,10 +690,11 @@ const routes = [
   }],
   ["GET", /^\/refrigeration\/units$/, [ADMIN, MANAGER, STAFF], (_m, _b, _u, db) => db.units.map((u) => unitView(db, u))],
   ["GET", /^\/refrigeration\/units\/([A-Za-z0-9-]+)\/readings\?hours=(\d+)$/, [ADMIN, MANAGER, STAFF], ([, id, hours], _b, _u, db, now) => {
-    if (!db.units.some((u) => u.unitId === id)) fail(404, "NOT_FOUND", "Unknown unit");
+    const unit = db.units.find((u) => u.unitId.toLowerCase() === id.toLowerCase());
+    if (!unit) fail(404, "NOT_FOUND", "Unknown unit");
     const since = now.getTime() - Number(hours) * 3600000;
     return db.readings
-      .filter((r) => r.unitId === id && r.type === "temperature" && new Date(r.recordedAt).getTime() >= since)
+      .filter((r) => r.unitId.toLowerCase() === unit.unitId.toLowerCase() && r.type === "temperature" && new Date(r.recordedAt).getTime() >= since)
       .map((r) => ({ recordedAt: r.recordedAt, value: r.value }));
   }],
 
@@ -737,14 +752,21 @@ function raise(db, now, alert) {
 }
 
 /** {unitId, type: temperature|door|status, value} -> stores it and raises alerts. */
-function deviceReading(db, { unitId, type, value }, now) {
+function deviceReading(db, { unitId, type, value, recordedAt }, now) {
+  if (recordedAt) {
+    const rec = new Date(recordedAt);
+    if (rec.getTime() > now.getTime() + 5 * 60 * 1000) {
+      fail(400, "INVALID", "Reading time cannot be in the future");
+    }
+  }
+  const timestamp = recordedAt ? new Date(recordedAt).toISOString() : now.toISOString();
   const unit = db.units.find((u) => u.unitId === unitId);
   if (!unit) fail(400, "INVALID", "Unknown unit");
   let alertRaised = false;
   if (type === "temperature") {
     const v = Number(value);
     if (!Number.isFinite(v)) fail(400, "INVALID", `Temperature must be a number, got "${value}"`);
-    db.readings.push({ unitId, type, value: v, recordedAt: now.toISOString() });
+    db.readings.push({ unitId, type, value: v, recordedAt: timestamp });
     if (v < unit.tempMin || v > unit.tempMax) {
       raise(db, now, { type: "temperature", severity: "warning", unitId, message: `${unit.name} at ${v} °C, outside ${unit.tempMin} to ${unit.tempMax} °C` });
       alertRaised = true;

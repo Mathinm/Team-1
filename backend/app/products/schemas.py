@@ -22,9 +22,11 @@ class ProductFields(BaseModel):
     lowStockThreshold: int = Field(default=10, ge=0)
 
     @model_validator(mode="after")
-    def validate_temperature_range(self):
+    def validate_temperature_and_price_ranges(self):
         if self.tempMin >= self.tempMax:
             raise ValueError("tempMin must be lower than tempMax")
+        if self.sellingPrice < self.costPrice:
+            raise ValueError("Selling price cannot be lower than cost price")
         return self
 
 

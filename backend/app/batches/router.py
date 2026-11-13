@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.alerts.service import refresh_after_change
+from app.alerts.service import as_utc, raise_alert, refresh_after_change
 from app.batches.schemas import BatchCreated, BatchIn, FefoBatchOut, RestockIn
 from app.config import get_settings
 from app.db import get_db
@@ -118,6 +118,33 @@ def receive_batch(
         expiry_date=body.expiryDate,
     )
     db.add(batch)
+    db.flush()
+    today = store_today()
+    if batch.expiry_date <= today:
+        unit_str = product.unit if product and product.unit else "units"
+        qty_str = format(Decimal(str(batch.quantity)).normalize(), "f")
+        if batch.expiry_date == today:
+            time_str = "today"
+            verb = "expires"
+        elif batch.expiry_date == today - timedelta(days=1):
+            time_str = "yesterday"
+            verb = "expired"
+        else:
+            time_str = f"on {batch.expiry_date.isoformat()}"
+            verb = "expired"
+        alert_msg = (
+            f"{product.name} batch {batch.batch_id} {verb} {time_str} "
+            f"({qty_str} {unit_str} remaining)"
+        )
+        raise_alert(
+            db,
+            type="EXPIRY",
+            key=f"expiry:{batch.batch_id}",
+            message=alert_msg,
+            severity="critical",
+            product_id=batch.product_id,
+            triggered_at=as_utc(datetime.now(timezone.utc)),
+        )
     refresh_after_change(db, product.product_id)  # close LOW_STOCK once stock is back up
     db.commit()
     return BatchCreated(batchId=batch.batch_id, newStock=_stock(db, product.product_id))

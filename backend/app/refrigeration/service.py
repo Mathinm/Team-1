@@ -153,6 +153,8 @@ def apply_reading(
     """
     now = now or now_utc()
     t = as_utc(reading.recorded_at)
+    if t > now + timedelta(minutes=5):
+        return []
     unit = get_or_create_unit(db, reading.unit_id)
     unit.last_received_at = now
     if _newer(unit.last_event_at, t):

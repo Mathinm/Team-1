@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.models import Notification
-from app.rbac import get_current_user
+from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
+viewers = require_roles(ADMIN, MANAGER, STAFF)
 
 
 def _timestamp(value: datetime | None) -> str | None:
@@ -24,7 +25,7 @@ def _timestamp(value: datetime | None) -> str | None:
 def list_notifications(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _current_user=Depends(get_current_user),
+    _current_user: CurrentUser = Depends(viewers),
 ):
     """Return the newest notifications for the configured store."""
     store_id = get_settings().store_id

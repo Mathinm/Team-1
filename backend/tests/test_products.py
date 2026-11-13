@@ -123,3 +123,20 @@ def test_edit_unknown_product_is_404(client, seeded):
         "/api/products/999", json=product_payload("Z-01"), headers=auth("manager1", "Manager")
     )
     assert response.status_code == 404
+
+
+def test_selling_price_lower_than_cost_price_is_400(client, seeded):
+    response = client.post(
+        "/api/products",
+        json={**product_payload("LOW-01"), "costPrice": 10, "sellingPrice": 8},
+        headers=auth("manager1", "Manager"),
+    )
+    assert response.status_code == 400
+    assert "Selling price cannot be lower than cost price" in response.text
+
+
+def test_cannot_change_unit_while_product_has_stock(client, seeded):
+    body = {**product_payload("TOM-01"), "unit": "piece"}
+    response = client.put("/api/products/1", json=body, headers=auth("manager1", "Manager"))
+    assert response.status_code == 400
+    assert "Cannot change unit" in response.json()["error"]["message"]

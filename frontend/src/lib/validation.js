@@ -39,6 +39,8 @@ export function validateProduct(p) {
   const price = num(p.sellingPrice);
   if (Number.isNaN(cost) || cost <= 0) e.costPrice = "Must be a positive amount";
   if (Number.isNaN(price) || price <= 0) e.sellingPrice = "Must be a positive amount";
+  else if (!Number.isNaN(cost) && cost > 0 && price < cost)
+    e.sellingPrice = "Selling price cannot be lower than cost price";
 
   const threshold = num(p.lowStockThreshold);
   if (!Number.isInteger(threshold) || threshold < 0)

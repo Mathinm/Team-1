@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateBatch, validateProduct, validateSale } from "./validation.js";
-import { expiryStatus, daysBetween } from "./dates.js";
+import { expiryStatus, daysBetween, formatDateTime } from "./dates.js";
 import { parseCsv, toCsv } from "./csv.js";
 
 const goodProduct = {
@@ -20,6 +20,10 @@ describe("validateProduct (FR-1, TC-PROD-01)", () => {
     const e = validateProduct({ ...goodProduct, tempMin: "12", tempMax: "8", sellingPrice: "-5" });
     expect(e.tempMax).toMatch(/higher than minimum/);
     expect(e.sellingPrice).toBeDefined();
+  });
+  it("rejects selling price lower than cost price (N14)", () => {
+    const e = validateProduct({ ...goodProduct, costPrice: "20", sellingPrice: "15" });
+    expect(e.sellingPrice).toMatch(/lower than cost price/);
   });
 });
 
@@ -59,6 +63,13 @@ describe("dates", () => {
     expect(expiryStatus(-1)).toBe("expired");
     expect(expiryStatus(2)).toBe("near");
     expect(expiryStatus(3)).toBe("fresh");
+  });
+  it("formats date-time showing year only when different from current year (N2)", () => {
+    const curYear = new Date().getFullYear();
+    const sameYear = formatDateTime(`${curYear}-11-12T10:30:00`);
+    expect(sameYear).not.toMatch(String(curYear));
+    const otherYear = formatDateTime("2031-11-12T10:30:00");
+    expect(otherYear).toMatch("2031");
   });
 });
 

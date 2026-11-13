@@ -13,7 +13,7 @@ from app.errors import ApiError
 from app.models import Alert, RefrigerationUnit, SensorReading
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
 from app.refrigeration.schemas import ReadingPoint, UnitOut, UnitSettingsIn
-from app.refrigeration.service import effective_limits, recheck_temperature
+from app.refrigeration.service import canonical_unit_id, effective_limits, recheck_temperature
 
 router = APIRouter(prefix="/api/refrigeration", tags=["refrigeration"])
 viewers = require_roles(ADMIN, MANAGER, STAFF)
@@ -61,10 +61,11 @@ def update_unit_settings(
     db: Session = Depends(get_db),
 ):
     """Set how long the door may stay open and the safe temperature range for one fridge."""
+    c_unit_id = canonical_unit_id(db, unit_id)
     unit = db.scalar(
         select(RefrigerationUnit).where(
             RefrigerationUnit.store_id == get_settings().store_id,
-            RefrigerationUnit.unit_id == unit_id,
+            func.lower(RefrigerationUnit.unit_id) == c_unit_id.lower(),
         )
     )
     if unit is None:
@@ -98,19 +99,21 @@ def unit_readings(
     shown at the time they were taken.
     """
     store_id = get_settings().store_id
-    known = db.scalar(
-        select(RefrigerationUnit.id).where(
-            RefrigerationUnit.store_id == store_id, RefrigerationUnit.unit_id == unit_id
+    c_unit_id = canonical_unit_id(db, unit_id)
+    unit = db.scalar(
+        select(RefrigerationUnit).where(
+            RefrigerationUnit.store_id == store_id,
+            func.lower(RefrigerationUnit.unit_id) == c_unit_id.lower(),
         )
     )
-    if known is None:
+    if unit is None:
         raise ApiError(404, "NOT_FOUND", f"Unknown refrigeration unit {unit_id}")
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     rows = db.execute(
         select(SensorReading.recorded_at, SensorReading.value_num)
         .where(
             SensorReading.store_id == store_id,
-            SensorReading.unit_id == unit_id,
+            func.lower(SensorReading.unit_id) == unit.unit_id.lower(),
             SensorReading.type == "temperature",
             SensorReading.recorded_at >= since,
         )
