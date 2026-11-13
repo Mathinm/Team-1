@@ -107,7 +107,7 @@ def test_stock_report(client, seeded):
     assert tomato["onHand"] == 37 and tomato["batches"] == 2 and tomato["status"] == "OK"
     assert by(r["rows"], "product", "Bread Loaf")["status"] == "Low stock"
     assert by(r["rows"], "product", "Milk 1L")["status"] == "Has expired stock"
-    assert r["summary"] == [{"label": "Total stock value", "value": "Rs 142.0"}]
+    assert r["summary"] == [{"label": "Total stock value", "value": "₹142.00"}]
     assert [c["key"] for c in r["columns"]][:3] == ["product", "category", "onHand"]
 
 
@@ -122,7 +122,7 @@ def test_wastage_report_waste_percent_and_money_lost(client, seeded):
     banana = by(r["rows"], "product", "Banana")
     assert banana["wastePct"] == 100.0 and banana["moneyLost"] == 3.0
     assert r["rows"][0]["product"] == "Banana"  # most money lost first
-    assert r["summary"] == [{"label": "Total money lost to waste", "value": "Rs 4.0"}]
+    assert r["summary"] == [{"label": "Total money lost to waste", "value": "₹4.00"}]
 
 
 def test_sellers_report_ranks_by_revenue(client, seeded):

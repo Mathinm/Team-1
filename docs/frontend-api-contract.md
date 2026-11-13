@@ -108,15 +108,16 @@ Rules:
 
 | Method & path | Who | Response |
 |---|---|---|
-| `GET /dashboard` **(added; backend in #47 B1)** | Admin, Manager, Inventory Staff | `{salesToday:{count, amount}, stockValue, wasteLast7Days:{value, removals}, lowStock:[{productId, name, stock, threshold, unit}], expiringSoon:[{batchId, productName, quantity, unit, expiryDate, daysToExpiry}] (≤ 2 days, incl. expired), activeAlerts:{count, critical, latest:[alert]}}` |
-| `GET /reports/{type}?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Manager | `{type, title, from, to, columns:[{key, label, numeric?}], rows:[{...}], summary:[{label, value}]}`; 400 if from > to, a date is missing or invalid, or the range is over 366 days; 404 unknown type |
+| `GET /dashboard` **(added; backend in #47 B1)** | Admin, Manager, Inventory Staff | `{salesToday:{count, amount}, stockValue, wasteLast7Days:{value, removals}, lowStock:[{productId, name, stock, threshold, unit}], expiringSoon:[{batchId, productName, quantity, unit, expiryDate, daysToExpiry}] (≤ 2 days, incl. expired), activeAlerts:{count, critical, latest:[alert]}, units:[{unitId, name, status, problem}]}`. Unit `status`: `ok` (power on, temperature in range, door not open past its limit), `alert` (powered but too warm/cold or door open too long; `problem` says which, e.g. "25 °C, too warm (allowed 2 to 8)") or `failed` (power off / unit failed). "Fridges N of M working" counts `ok` only (#72 N19) |
+| `GET /reports/{type}?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Manager | `{type, title, from, to, asOf, columns:[{key, label, numeric?, money?}], rows:[{...}], summary:[{label, value}]}`. `asOf` is the time the report was built for snapshot reports (`stock`), else null; the screen then shows "As of …" instead of the range. Money columns carry `money: true` and are shown as ₹ with 2 decimals; summary money is already formatted, e.g. `"₹1,23,456.50"` (#72 N15, N20); 400 if from > to, a date is missing or invalid, or the range is over 366 days; 404 unknown type |
 
 Report `type` values and what each must contain (reference implementation:
 `frontend/src/api/mock/reports.js`):
 
 | type | Rows |
 |---|---|
-| `stock` | per product: on hand, batches, next expiry, value at cost, status |
+| `stock` | per product: on hand, batches, next expiry, value at cost, status. A snapshot of now: `from`/`to` are not used (`asOf` set) |
+| `sales` | every sale in the range, newest first: sold at, sale id, product, quantity, unit, unit price, amount, source (Manual / CSV / POS), recorded by; summary: number of sales and total revenue (#72 T7) |
 | `wastage` | per product in range: sold, wasted, waste % = wasted / (sold + wasted), money lost = Σ removal qty × cost price |
 | `sellers` | products ranked by revenue, tagged best / worst |
 | `supplier-quality` | per supplier: deliveries, units received, units wasted, waste rate % |
