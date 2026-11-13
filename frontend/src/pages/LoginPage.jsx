@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [showOtp, setShowOtp] = useState(false);
   const [errors, setErrors] = useState({});
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
   if (user) return <Navigate to={homePathFor(user.role)} replace />;
@@ -28,6 +29,7 @@ export default function LoginPage() {
     if (!form.password) errs.password = "Enter your password";
     setErrors(errs);
     setError("");
+    setInfo("");
     if (Object.keys(errs).length) return;
 
     setBusy(true);
@@ -36,9 +38,15 @@ export default function LoginPage() {
       const from = location.state?.from;
       navigate(from && canOpen(s.role, from) ? from : homePathFor(s.role), { replace: true });
     } catch (err) {
-      setError(err.message || "Login failed");
-      // 2FA for Manager/Admin (NFR-10): backend asks for the one-time code.
-      if (err.code === "OTP_REQUIRED") setShowOtp(true);
+      // T4: 2FA one-time code notice is informational, not an error.
+      if (err.code === "OTP_REQUIRED") {
+        setShowOtp(true);
+        setError("");
+        setInfo(err.message || "We emailed a login code to your address. Enter it below.");
+      } else {
+        setError(err.message || "Login failed");
+        setInfo("");
+      }
     } finally {
       setBusy(false);
     }
@@ -62,7 +70,7 @@ export default function LoginPage() {
         <h1 className="login-v2__title">Hello,<br />welcome back</h1>
         <p className="muted login-v2__lead">Sign in to manage your store&apos;s fresh stock.</p>
 
-        <Banner kind="info">{notice}</Banner>
+        <Banner kind="info">{notice || info}</Banner>
         <Banner kind="error">{error}</Banner>
 
         <Field label="User ID" error={errors.userId} id="userId">

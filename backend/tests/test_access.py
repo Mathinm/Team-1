@@ -34,9 +34,18 @@ def test_tc_auth_02_every_api_endpoint_refuses_anonymous_calls(client, method, p
 
 @pytest.mark.parametrize("role,menu", [
     ("Cashier", ["sales"]),
-    ("Inventory Staff", ["products", "stock"]),
-    ("Manager", ["products", "stock"]),
-    ("Admin", ["products", "stock", "sales", "users"]),
+    ("Inventory Staff", [
+        "dashboard", "products", "stock", "stock-count", "removals", "markdowns",
+        "alerts", "refrigeration",
+    ]),
+    ("Manager", [
+        "dashboard", "products", "stock", "stock-count", "removals", "markdowns",
+        "alerts", "refrigeration", "reports",
+    ]),
+    ("Admin", [
+        "dashboard", "products", "stock", "stock-count", "removals", "markdowns",
+        "sales", "alerts", "refrigeration", "reports", "users",
+    ]),
 ])
 def test_tc_auth_02_menu_shows_only_the_role_screens(client, role, menu):
     me = client.get("/api/auth/me", headers=auth("u1", role)).json()
