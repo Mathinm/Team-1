@@ -7,6 +7,13 @@ import { REPORT_TYPES } from "../../config/reports.js";
 export { REPORT_TYPES };
 
 const r2 = (n) => Math.round(n * 100) / 100;
+
+/** Rupees with Indian grouping and two decimals: 123456.5 -> "₹1,23,456.50" (N20, same as backend inr()). */
+export function inr(n) {
+  const v = r2(Number(n) || 0);
+  const s = Math.abs(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${v < 0 ? "-" : ""}₹${s}`;
+}
 const pct = (part, whole) => (whole > 0 ? r2((part / whole) * 100) : 0);
 
 function inRange(iso, from, to) {
@@ -35,7 +42,7 @@ const builders = {
       { key: "unit", label: "Unit" },
       { key: "batches", label: "Batches", numeric: true },
       { key: "nextExpiry", label: "Next expiry" },
-      { key: "value", label: "Value at cost (Rs)", numeric: true },
+      { key: "value", money: true, label: "Value at cost (₹)", numeric: true },
       { key: "status", label: "Status" },
     ];
     const rows = db.products
@@ -56,7 +63,39 @@ const builders = {
         };
       });
     const total = r2(rows.reduce((s, r) => s + r.value, 0));
-    return { columns, rows, summary: [{ label: "Total stock value", value: `Rs ${total}` }] };
+    return { columns, rows, summary: [{ label: "Total stock value", value: inr(total) }] };
+  },
+
+  // T7: every sale in the range, newest first (backend _sales_history).
+  sales(db, { from, to }) {
+    const columns = [
+      { key: "date", label: "Sold at" },
+      { key: "saleId", label: "Sale", numeric: true },
+      { key: "product", label: "Product" },
+      { key: "quantity", label: "Quantity", numeric: true },
+      { key: "unit", label: "Unit" },
+      { key: "unitPrice", money: true, label: "Unit price (₹)", numeric: true },
+      { key: "amount", money: true, label: "Amount (₹)", numeric: true },
+      { key: "source", label: "Source" },
+      { key: "recordedBy", label: "Recorded by" },
+    ];
+    const SOURCES = { manual: "Manual", csv: "CSV", device: "POS" };
+    const sales = db.sales
+      .filter((x) => inRange(x.soldAt, from, to))
+      .sort((a, b) => b.soldAt.localeCompare(a.soldAt) || b.saleId - a.saleId);
+    const rows = sales.map((x) => ({
+      date: x.soldAt,
+      saleId: x.saleId,
+      product: productName(db, x.productId),
+      quantity: x.quantity,
+      unit: x.unit,
+      unitPrice: r2(x.unitPrice ?? x.amount / x.quantity),
+      amount: x.amount,
+      source: SOURCES[x.source] ?? (x.source || "Manual"),
+      recordedBy: x.recordedBy ?? "-",
+    }));
+    const total = r2(sales.reduce((a, x) => a + x.amount, 0));
+    return { columns, rows, summary: [{ label: "Sales", value: String(rows.length) }, { label: "Total revenue", value: inr(total) }] };
   },
 
   wastage(db, { from, to }) {
@@ -66,7 +105,7 @@ const builders = {
       { key: "wasted", label: "Wasted", numeric: true },
       { key: "unit", label: "Unit" },
       { key: "wastePct", label: "Waste %", numeric: true },
-      { key: "moneyLost", label: "Money lost (Rs)", numeric: true },
+      { key: "moneyLost", money: true, label: "Money lost (₹)", numeric: true },
     ];
     const rows = db.products
       .map((p) => {
@@ -85,7 +124,7 @@ const builders = {
       .filter((r) => r.sold > 0 || r.wasted > 0)
       .sort((a, b) => b.moneyLost - a.moneyLost);
     const lost = r2(rows.reduce((s, r) => s + r.moneyLost, 0));
-    return { columns, rows, summary: [{ label: "Total money lost to waste", value: `Rs ${lost}` }] };
+    return { columns, rows, summary: [{ label: "Total money lost to waste", value: inr(lost) }] };
   },
 
   sellers(db, { from, to }) {
@@ -94,7 +133,7 @@ const builders = {
       { key: "product", label: "Product" },
       { key: "quantity", label: "Quantity sold", numeric: true },
       { key: "unit", label: "Unit" },
-      { key: "revenue", label: "Revenue (Rs)", numeric: true },
+      { key: "revenue", money: true, label: "Revenue (₹)", numeric: true },
       { key: "tag", label: "" },
     ];
     const rows = db.products
@@ -106,7 +145,7 @@ const builders = {
       .sort((a, b) => b.revenue - a.revenue)
       .map((r, i, all) => ({ rank: i + 1, ...r, tag: i < 3 ? "Best seller" : i >= all.length - 2 && all.length > 4 ? "Worst seller" : "" }));
     const revenue = r2(rows.reduce((s, r) => s + r.revenue, 0));
-    return { columns, rows, summary: [{ label: "Total revenue", value: `Rs ${revenue}` }] };
+    return { columns, rows, summary: [{ label: "Total revenue", value: inr(revenue) }] };
   },
 
   "supplier-quality"(db, { from, to }) {
@@ -138,7 +177,7 @@ const builders = {
       { key: "unit", label: "Unit" },
       { key: "reason", label: "Reason" },
       { key: "worker", label: "Removed by" },
-      { key: "value", label: "Value (Rs)", numeric: true },
+      { key: "value", money: true, label: "Value (₹)", numeric: true },
     ];
     const rows = db.removals
       .filter((x) => inRange(x.removedAt, from, to))
@@ -220,11 +259,33 @@ const builders = {
   },
 };
 
+// Reports that show the state now and ignore the date range (N15).
+const SNAPSHOT_REPORTS = new Set(["stock"]);
+
 export function buildReport(db, type, range, now = new Date()) {
   const meta = REPORT_TYPES.find((t) => t.type === type);
   if (!meta) return null;
   const report = builders[type](db, range, now);
-  return { type, title: meta.title, ...report, summary: report.summary ?? [] };
+  return {
+    type,
+    title: meta.title,
+    asOf: SNAPSHOT_REPORTS.has(type) ? now.toISOString() : null,
+    ...report,
+    summary: report.summary ?? [],
+  };
+}
+
+/** N19: a fridge is "ok" only when it has power, is in range and its door is shut (backend unit_health). */
+export function unitHealth(db, u) {
+  if (u.status === "failed") return { status: "failed", problem: "Unit failed" };
+  let last = null;
+  for (const r of db.readings ?? []) if (r.unitId === u.unitId && r.type === "temperature") last = r;
+  if (last && (last.value < u.tempMin || last.value > u.tempMax)) {
+    const side = last.value > u.tempMax ? "too warm" : "too cold";
+    return { status: "alert", problem: `${last.value} °C, ${side} (allowed ${u.tempMin} to ${u.tempMax})` };
+  }
+  if (u.doorOpen) return { status: "alert", problem: "Door open" };
+  return { status: "ok", problem: null };
 }
 
 const SEVERITY_RANK = { critical: 0, warning: 1, info: 2 };
@@ -265,7 +326,7 @@ export function buildDashboard(db, now = new Date()) {
       critical: activeAlerts.filter((a) => a.severity === "critical").length,
       latest: [...activeAlerts].sort(bySeverityThenNewest).slice(0, 5),
     },
-    units: (db.units ?? []).map((u) => ({ unitId: u.unitId, name: u.name, status: u.status })),
+    units: (db.units ?? []).map((u) => ({ unitId: u.unitId, name: u.name, ...unitHealth(db, u) })),
   };
 }
 

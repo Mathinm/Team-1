@@ -27,6 +27,17 @@ const TILE_ICONS = {
   waste: "M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14",
 };
 
+const UNIT_PILL = { ok: "pill--ok", alert: "pill--warn", failed: "pill--solid-bad" };
+
+/** Short pill text for a fridge with a problem: "Too warm", "Too cold", "Door open" (N19). */
+function unitProblemLabel(problem) {
+  if (!problem) return "Check";
+  if (problem.includes("too warm")) return "Too warm";
+  if (problem.includes("too cold")) return "Too cold";
+  if (problem.startsWith("Door")) return "Door open";
+  return "Check";
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -66,7 +77,8 @@ export default function DashboardPage() {
   const clock = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Kolkata" });
 
   const units = data?.units ?? [];
-  const working = units.filter((u) => u.status !== "failed").length;
+  // N19: "working" means powered, in range and door shut, not just "not failed".
+  const working = units.filter((u) => u.status === "ok").length;
   const nextExpiry = data ? [...data.expiringSoon].sort((a, b) => a.daysToExpiry - b.daysToExpiry)[0] : null;
   const needYou = data ? data.lowStock.length + data.expiringSoon.length + data.activeAlerts.count : 0;
 
@@ -202,11 +214,11 @@ export default function DashboardPage() {
               ) : (
                 <ul className="unit-mini">
                   {units.map((u) => (
-                    <li key={u.unitId} className={u.status === "failed" ? "unit-mini--bad" : ""}>
-                      <span className={`pulse-dot${u.status === "failed" ? " pulse-dot--bad" : ""}`} aria-hidden="true" />
+                    <li key={u.unitId} className={u.status !== "ok" ? "unit-mini--bad" : ""} title={u.problem ?? undefined}>
+                      <span className={`pulse-dot${u.status !== "ok" ? " pulse-dot--bad" : ""}`} aria-hidden="true" />
                       <strong>{u.name}</strong>
-                      <span className={`pill ${u.status === "failed" ? "pill--solid-bad" : "pill--ok"}`}>
-                        {u.status === "failed" ? "Failed" : "Working"}
+                      <span className={`pill ${UNIT_PILL[u.status] ?? "pill--warn"}`}>
+                        {u.status === "failed" ? "Failed" : u.status === "alert" ? unitProblemLabel(u.problem) : "Working"}
                       </span>
                     </li>
                   ))}

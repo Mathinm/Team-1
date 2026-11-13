@@ -4,6 +4,8 @@ The numbers follow frontend/src/api/mock/reports.js, so demo mode and the real b
   * money lost to waste = quantity removed x the product's cost price
   * stock value = quantity on hand x cost price
   * a report's date range covers the whole of both days, in the store's time zone
+  * money is shown as rupees with two decimals, e.g. "₹1,234.50" (N20)
+  * the stock report is a snapshot of now and ignores the range; it says so with asOf (N15)
 """
 
 from collections import defaultdict
@@ -34,6 +36,7 @@ SEVERITY_RANK = {"critical": 0, "warning": 1, "info": 2}
 
 REPORT_TITLES = {
     "stock": "Stock on hand",
+    "sales": "Sales history",
     "wastage": "Wastage and money lost",
     "sellers": "Best and worst sellers",
     "supplier-quality": "Supplier quality",
@@ -46,6 +49,23 @@ REPORT_TITLES = {
 
 def r2(value) -> float:
     return round(float(value), 2)
+
+
+def inr(value) -> str:
+    """Rupees with Indian digit grouping and two decimals: 123456.5 -> '₹1,23,456.50' (N20)."""
+    q = Decimal(str(value)).quantize(Decimal("0.01"))
+    sign = "-" if q < 0 else ""
+    whole, frac = f"{abs(q):.2f}".split(".")
+    if len(whole) > 3:
+        head, tail = whole[:-3], whole[-3:]
+        groups = []
+        while len(head) > 2:
+            groups.insert(0, head[-2:])
+            head = head[:-2]
+        if head:
+            groups.insert(0, head)
+        whole = ",".join(groups + [tail])
+    return f"{sign}₹{whole}.{frac}"
 
 
 def pct(part, whole) -> float:
@@ -112,7 +132,7 @@ def _stock(db: Session, _lo, _hi, today: date) -> dict:
         {"key": "unit", "label": "Unit"},
         {"key": "batches", "label": "Batches", "numeric": True},
         {"key": "nextExpiry", "label": "Next expiry"},
-        {"key": "value", "label": "Value at cost (Rs)", "numeric": True},
+        {"key": "value", "money": True, "label": "Value at cost (₹)", "numeric": True},
         {"key": "status", "label": "Status"},
     ]
     by_product = defaultdict(list)
@@ -141,7 +161,7 @@ def _stock(db: Session, _lo, _hi, today: date) -> dict:
         })
     total = r2(sum(r["value"] for r in rows))
     return {"columns": columns, "rows": rows,
-            "summary": [{"label": "Total stock value", "value": f"Rs {total}"}]}
+            "summary": [{"label": "Total stock value", "value": inr(total)}]}
 
 
 def _wastage(db: Session, lo, hi, _today) -> dict:
@@ -151,7 +171,7 @@ def _wastage(db: Session, lo, hi, _today) -> dict:
         {"key": "wasted", "label": "Wasted", "numeric": True},
         {"key": "unit", "label": "Unit"},
         {"key": "wastePct", "label": "Waste %", "numeric": True},
-        {"key": "moneyLost", "label": "Money lost (Rs)", "numeric": True},
+        {"key": "moneyLost", "money": True, "label": "Money lost (₹)", "numeric": True},
     ]
     products = _products(db)
     batch_product = {b.batch_id: b.product_id for b in _batches(db)}
@@ -174,7 +194,7 @@ def _wastage(db: Session, lo, hi, _today) -> dict:
     rows.sort(key=lambda r: (-r["moneyLost"], r["product"]))
     total = r2(sum(r["moneyLost"] for r in rows))
     return {"columns": columns, "rows": rows,
-            "summary": [{"label": "Total money lost to waste", "value": f"Rs {total}"}]}
+            "summary": [{"label": "Total money lost to waste", "value": inr(total)}]}
 
 
 def _sellers(db: Session, lo, hi, _today) -> dict:
@@ -183,7 +203,7 @@ def _sellers(db: Session, lo, hi, _today) -> dict:
         {"key": "product", "label": "Product"},
         {"key": "quantity", "label": "Quantity sold", "numeric": True},
         {"key": "unit", "label": "Unit"},
-        {"key": "revenue", "label": "Revenue (Rs)", "numeric": True},
+        {"key": "revenue", "money": True, "label": "Revenue (₹)", "numeric": True},
         {"key": "tag", "label": ""},
     ]
     products = _products(db)
@@ -203,7 +223,38 @@ def _sellers(db: Session, lo, hi, _today) -> dict:
         })
     total = r2(sum(r["revenue"] for r in rows))
     return {"columns": columns, "rows": rows,
-            "summary": [{"label": "Total revenue", "value": f"Rs {total}"}]}
+            "summary": [{"label": "Total revenue", "value": inr(total)}]}
+
+
+def _sales_history(db: Session, lo, hi, _today) -> dict:
+    """Every sale in the range, newest first (T7): when, what, how much, how it came in."""
+    columns = [
+        {"key": "date", "label": "Sold at"},
+        {"key": "saleId", "label": "Sale", "numeric": True},
+        {"key": "product", "label": "Product"},
+        {"key": "quantity", "label": "Quantity", "numeric": True},
+        {"key": "unit", "label": "Unit"},
+        {"key": "unitPrice", "money": True, "label": "Unit price (₹)", "numeric": True},
+        {"key": "amount", "money": True, "label": "Amount (₹)", "numeric": True},
+        {"key": "source", "label": "Source"},
+        {"key": "recordedBy", "label": "Recorded by"},
+    ]
+    products = _products(db)
+    sources = {"manual": "Manual", "csv": "CSV", "device": "POS"}
+    sales = sorted(_sales(db, lo, hi), key=lambda s: (as_utc(s.sold_at), s.sale_id), reverse=True)
+    rows = [
+        {"date": iso(s.sold_at), "saleId": s.sale_id,
+         "product": products[s.product_id].name if s.product_id in products else s.sku,
+         "quantity": num(s.quantity), "unit": s.unit, "unitPrice": r2(s.unit_price),
+         "amount": r2(s.amount), "source": sources.get(s.source, s.source),
+         "recordedBy": s.recorded_by}
+        for s in sales
+    ]
+    total = r2(sum((s.amount for s in sales), Decimal(0)))
+    return {"columns": columns, "rows": rows, "summary": [
+        {"label": "Sales", "value": str(len(rows))},
+        {"label": "Total revenue", "value": inr(total)},
+    ]}
 
 
 def _supplier_quality(db: Session, lo, hi, _today) -> dict:
@@ -246,7 +297,7 @@ def _removal_rows(db: Session, lo, hi, _today) -> dict:
         {"key": "unit", "label": "Unit"},
         {"key": "reason", "label": "Reason"},
         {"key": "worker", "label": "Removed by"},
-        {"key": "value", "label": "Value (Rs)", "numeric": True},
+        {"key": "value", "money": True, "label": "Value (₹)", "numeric": True},
     ]
     products = _products(db)
     batch_product = {b.batch_id: b.product_id for b in _batches(db)}
@@ -342,6 +393,7 @@ def _alerts(db: Session, lo, hi, _today) -> dict:
 
 BUILDERS = {
     "stock": _stock,
+    "sales": _sales_history,
     "wastage": _wastage,
     "sellers": _sellers,
     "supplier-quality": _supplier_quality,
@@ -352,15 +404,41 @@ BUILDERS = {
 }
 
 
-def build_report(db: Session, report_type: str, start: date, end: date) -> dict:
+SNAPSHOT_REPORTS = {"stock"}  # show the state now; the date range does not apply (N15)
+
+
+def build_report(db: Session, report_type: str, start: date, end: date,
+                 now: datetime | None = None) -> dict:
+    now = now or datetime.now(timezone.utc)
     lo, hi = day_range(start, end)
-    body = BUILDERS[report_type](db, lo, hi, store_today())
+    body = BUILDERS[report_type](db, lo, hi, store_today(now))
     return {"type": report_type, "title": REPORT_TITLES[report_type],
             "from": start.isoformat(), "to": end.isoformat(),
+            "asOf": now.isoformat() if report_type in SNAPSHOT_REPORTS else None,
             "summary": [], **body}
 
 
 # ---------------------------------------------------------------- dashboard
+
+
+def unit_health(unit: RefrigerationUnit, now: datetime) -> tuple[str, str | None]:
+    """("ok" | "failed" | "alert", what is wrong) from power, temperature and door (N19).
+
+    A fridge that is powered but too warm, or whose door has been open past its limit, is not
+    "working" on the dashboard even though its status field still says OK.
+    """
+    door_limit, t_min, t_max = effective_limits(unit)
+    if unit.status == "FAILED" or unit.power == "OFF":
+        return "failed", "Power off" if unit.power == "OFF" else "Unit failed"
+    if unit.temperature is not None and not (t_min <= unit.temperature <= t_max):
+        side = "too warm" if unit.temperature > t_max else "too cold"
+        return "alert", f"{unit.temperature:g} °C, {side} (allowed {t_min:g} to {t_max:g})"
+    if unit.door == "OPEN" and unit.door_open_since is not None:
+        minutes = int((now - as_utc(unit.door_open_since)).total_seconds() // 60)
+        if minutes >= door_limit:
+            return "alert", f"Door open {minutes} min"
+    return "ok", None
+
 
 
 def build_dashboard(db: Session, now: datetime | None = None) -> dict:
@@ -421,6 +499,9 @@ def build_dashboard(db: Session, now: datetime | None = None) -> dict:
             "critical": sum(1 for a in active if a.severity == "critical"),
             "latest": [alert_out(a).model_dump(mode="json") for a in active[:5]],
         },
-        "units": [{"unitId": u.unit_id, "name": u.unit_id, "status": u.status.lower()}
-                  for u in units],
+        "units": [
+            {"unitId": u.unit_id, "name": u.unit_id, "status": st, "problem": problem}
+            for u in units
+            for st, problem in [unit_health(u, now)]
+        ],
     }

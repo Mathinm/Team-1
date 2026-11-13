@@ -1,6 +1,7 @@
 // Report types (FR-18). `type` is the path segment in GET /api/reports/{type}.
 export const REPORT_TYPES = [
-  { type: "stock", title: "Stock on hand", help: "Current stock, value and next expiry per product (ignores dates)" },
+  { type: "stock", title: "Stock on hand", help: "Current stock, value and next expiry per product, as of now (dates are not used)" },
+  { type: "sales", title: "Sales history", help: "Every sale in the period: time, product, quantity, price and who recorded it" },
   { type: "wastage", title: "Wastage and money lost", help: "Sold vs wasted per product, waste % and money lost" },
   { type: "sellers", title: "Best and worst sellers", help: "Products ranked by revenue" },
   { type: "supplier-quality", title: "Supplier quality", help: "Waste rate per supplier" },

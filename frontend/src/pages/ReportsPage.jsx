@@ -3,7 +3,7 @@ import { api } from "../api/endpoints.js";
 import { Banner, Field, Loading, PageHeader } from "../components/ui.jsx";
 import { REPORT_TYPES } from "../config/reports.js";
 import { addDays, toISODate } from "../lib/dates.js";
-import { exportReportCsv, exportReportPdf, formatCell } from "../lib/reportExport.js";
+import { exportReportCsv, exportReportPdf, formatCell, reportPeriod } from "../lib/reportExport.js";
 
 export default function ReportsPage() {
   const today = new Date();
@@ -93,7 +93,7 @@ export default function ReportsPage() {
           <div className="card__head">
             <div>
               <h2>{report.title}</h2>
-              <p className="muted small">{report.from} to {report.to}</p>
+              <p className="muted small">{reportPeriod(report)}</p>
             </div>
             <div className="page-header__actions">
               <button className="btn" onClick={() => exportAs("csv")} disabled={empty || Boolean(exporting)}>
@@ -133,7 +133,7 @@ export default function ReportsPage() {
                       <tr key={i}>
                         {report.columns.map((c) => (
                           <td key={c.key} data-label={c.label || " "} className={c.numeric ? "num" : ""}>
-                            {formatCell(r[c.key])}
+                            {formatCell(r[c.key], c)}
                           </td>
                         ))}
                       </tr>
