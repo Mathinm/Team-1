@@ -349,3 +349,17 @@ def test_offline_sale_from_before_the_batch_expired_is_still_accepted(db, seeded
     # the same sale dated now is still blocked from that expired batch
     res2 = record_sale(db, sku="TOM-01", quantity=1, source="manual", recorded_by="c")
     assert [u.batch_id for u in res2.batches_used] == [102]
+
+
+# ---- S3-6: CSV that cannot be read is a 400, never a crash --------------------------------
+def test_csv_with_a_huge_cell_is_refused_with_400(client, seeded, cashier):
+    body = "sku,quantity\nTOM-01,1\nTOM-01," + "9" * 200_000 + "\n"
+    r = client.post("/api/sales/csv", files={"file": ("s.csv", body, "text/csv")}, headers=cashier)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "INVALID"
+    assert stock(seeded, 1) == 37  # nothing was saved
+
+    huge_header = "sku," + "q" * 200_000 + "\nTOM-01,1\n"
+    r = client.post(
+        "/api/sales/csv", files={"file": ("s.csv", huge_header, "text/csv")}, headers=cashier
+    )
+    assert r.status_code == 400 and r.json()["error"]["code"] == "INVALID"

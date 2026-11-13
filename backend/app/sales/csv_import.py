@@ -21,6 +21,7 @@ from app.sales.schemas import CsvError, CsvResult
 MAX_BYTES = 1_000_000  # nginx in front of the API also limits bodies to 1 MB
 MAX_ROWS = 5000
 NEEDS = "CSV must have the columns sku and quantity"
+BAD_CSV = "The file is not a valid CSV (a cell is far too long or the text is damaged)"
 
 
 def _parse_sold_at(text: str) -> datetime | None:
@@ -63,10 +64,13 @@ def import_sales_csv(db: Session, raw: bytes, *, recorded_by: str) -> CsvResult:
 
     reader = csv.reader(io.StringIO(text, newline=""))
     headers: list[str] | None = None
-    for row in reader:
-        if any(c.strip() for c in row):
-            headers = [c.strip().lower() for c in row]
-            break
+    try:
+        for row in reader:
+            if any(c.strip() for c in row):
+                headers = [c.strip().lower() for c in row]
+                break
+    except csv.Error:
+        raise ApiError(400, "INVALID", BAD_CSV) from None
     if headers is None or "sku" not in headers or "quantity" not in headers:
         raise ApiError(400, "INVALID", NEEDS)
     col = {h: i for i, h in enumerate(headers)}
@@ -78,12 +82,17 @@ def import_sales_csv(db: Session, raw: bytes, *, recorded_by: str) -> CsvResult:
     # Read every data row first and enforce the limit BEFORE saving anything, so an over-long
     # file is refused as a whole (nothing imported) and re-uploading it in parts never doubles.
     data_rows: list[tuple[int, list[str]]] = []
-    for row in reader:
-        if not any(c.strip() for c in row):
-            continue
-        if len(data_rows) >= MAX_ROWS:
-            raise ApiError(400, "INVALID", f"The CSV has more than {MAX_ROWS} rows: split the file")
-        data_rows.append((reader.line_num, row))
+    try:
+        for row in reader:
+            if not any(c.strip() for c in row):
+                continue
+            if len(data_rows) >= MAX_ROWS:
+                raise ApiError(
+                    400, "INVALID", f"The CSV has more than {MAX_ROWS} rows: split the file"
+                )
+            data_rows.append((reader.line_num, row))
+    except csv.Error:
+        raise ApiError(400, "INVALID", BAD_CSV) from None
 
     imported = 0
     errors: list[CsvError] = []

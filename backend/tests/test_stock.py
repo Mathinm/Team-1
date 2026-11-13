@@ -203,3 +203,43 @@ def test_removal_rejects_blank_reason(client, seeded):
         headers=auth("stock-tester", "Inventory Staff"),
     )
     assert response.status_code == 400, response.text
+
+
+# ---- S3-6: removals use the same quantity rules as sales ----------------------------------
+def test_removal_quantity_typos_are_rejected_and_nothing_is_removed(client, seeded):
+    headers = auth("stock-tester", "Inventory Staff")
+    for bad in ("1_0", "1e1", "0x10", "1,5", "--3"):
+        r = client.post(
+            "/api/removals", json={"batchId": 102, "qty": bad, "reason": "damaged"}, headers=headers
+        )
+        assert r.status_code == 400, bad
+    batch = seeded.scalar(select(Batch).where(Batch.batch_id == 102))
+    seeded.refresh(batch)
+    assert batch.quantity == Decimal("25")
+    ok = client.post(
+        "/api/removals", json={"batchId": 102, "qty": "2.5", "reason": "damaged"}, headers=headers
+    )
+    assert ok.status_code == 201 and ok.json()["remainingQuantity"] == 22.5
+
+
+def test_removal_batch_id_out_of_range_is_400_not_a_crash(client, seeded):
+    r = client.post(
+        "/api/removals",
+        json={"batchId": 10**30, "qty": 1, "reason": "damaged"},
+        headers=auth("stock-tester", "Inventory Staff"),
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_removal_reason_is_trimmed_before_its_length_is_checked(client, seeded):
+    headers = auth("stock-tester", "Inventory Staff")
+    padded = client.post(
+        "/api/removals",
+        json={"batchId": 102, "qty": 1, "reason": "  " + "x" * 40 + "  "},
+        headers=headers,
+    )
+    assert padded.status_code == 201 and padded.json()["reason"] == "x" * 40
+    too_long = client.post(
+        "/api/removals", json={"batchId": 102, "qty": 1, "reason": "x" * 41}, headers=headers
+    )
+    assert too_long.status_code == 400
