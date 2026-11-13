@@ -98,7 +98,12 @@ export function ResetPasswordPage() {
       const res = await api.confirmPasswordReset(token, form.password);
       setDone(res?.message || "Your password has been changed. Log in with the new password.");
     } catch (ex) {
-      setError(ex.message);
+      if (ex.code === "SAME_PASSWORD") {
+        // T5: show it on the password field itself; the same link can be used again
+        setErrors({ password: ex.message });
+      } else {
+        setError(ex.message);
+      }
     } finally {
       setBusy(false);
     }

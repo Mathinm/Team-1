@@ -5,6 +5,9 @@ password reset (SEC-5) and alerts. With SMTP_HOST set it sends through that SMTP
 (Gmail, Mailtrap, a college server ...). Without it, nothing leaves the machine: the email is
 written to the backend log and kept in OUTBOX, so development, demos and tests need no mail
 account.
+
+If the SMTP server can't be reached or refuses us (wrong password, network down), send_email
+raises EmailError. Callers decide what the user sees; nobody should get a 500 for it.
 """
 
 import logging
@@ -25,6 +28,10 @@ class SentEmail:
     body: str
 
 
+class EmailError(Exception):
+    """The email could not be sent (SMTP unreachable, login refused, address rejected ...)."""
+
+
 # Last emails "sent" while SMTP is not set up (newest last). Tests read the code from here.
 OUTBOX: deque[SentEmail] = deque(maxlen=50)
 
@@ -41,10 +48,16 @@ def send_email(to: str, subject: str, body: str) -> None:
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
-    with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=10) as smtp:
-        if s.smtp_tls:
-            smtp.starttls()
-        if s.smtp_user:
-            smtp.login(s.smtp_user, s.smtp_password)
-        smtp.send_message(msg)
+    try:
+        with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=10) as smtp:
+            if s.smtp_tls:
+                smtp.starttls()
+            if s.smtp_user:
+                smtp.login(s.smtp_user, s.smtp_password)
+            smtp.send_message(msg)
+    except (smtplib.SMTPException, OSError) as e:  # OSError: refused, timeout, no network, DNS
+        # Log the reason (e.g. "Username and Password not accepted") but never the body.
+        log.warning("EMAIL FAILED to=%s subject=%s error=%s: %s",
+                    to, subject, type(e).__name__, e)
+        raise EmailError(str(e)) from e
     log.info("EMAIL sent to=%s subject=%s", to, subject)  # never log the body: it holds codes

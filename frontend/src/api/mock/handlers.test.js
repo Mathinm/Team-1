@@ -151,6 +151,18 @@ describe("password reset (SEC-5)", () => {
     expect((await call("POST", "/auth/password-reset/confirm", { token, newPassword: "Other1234" })).status).toBe(400);
   });
 
+  it("refuses the current password as the new one, and the link still works after", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    await call("POST", "/auth/password-reset", { userId: "staff1" });
+    const token = log.mock.calls.at(-1)[0].match(/token=(\S+)/)[1];
+    log.mockRestore();
+
+    const same = await call("POST", "/auth/password-reset/confirm", { token, newPassword: "staff123" });
+    expect(same.status).toBe(400);
+    expect(same.body.error.code).toBe("SAME_PASSWORD");
+    expect((await call("POST", "/auth/password-reset/confirm", { token, newPassword: "NewPass123" })).status).toBe(200);
+  });
+
   it("refuses a made-up link", async () => {
     const res = await call("POST", "/auth/password-reset/confirm", { token: "nope", newPassword: "NewPass123" });
     expect(res.status).toBe(400);
