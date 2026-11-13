@@ -46,7 +46,10 @@ describe("sales with FEFO (FR-3, FR-7, TC-STK-07)", () => {
     // Tomato: batch 101 has 12 kg expiring in 2 days, batch 102 has 25 kg in 5 days.
     const res = await call("POST", "/sales", { sku: "TOM-01", quantity: 5 }, t);
     expect(res.status).toBe(201);
-    expect(res.body.batchesUsed).toEqual([{ batchId: 101, qty: 5, expiryDate: expect.any(String) }]);
+    expect(res.body.batchesUsed).toEqual([{
+      batchId: 101, qty: 5, expiryDate: expect.any(String),
+      unitPrice: 30, originalPrice: 30, discountPercent: null,
+    }]);
     expect(res.body.remainingStock).toBe(32);
   });
 

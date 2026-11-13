@@ -11,9 +11,10 @@ from app.alerts.service import raise_alert, refresh_after_change, resolve_alert
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
+from app.markdowns.service import end_markdown_if_empty
 from app.models import Batch, Notification, Product, Removal, StockCount
 from app.rbac import ADMIN, MANAGER, STAFF, CurrentUser, require_roles
-from app.sales.fefo import UNITS_WHOLE_ONLY, check_quantity
+from app.sales.fefo import UNITS_WHOLE_ONLY, check_quantity, fmt_qty
 from app.stock.schemas import RemovalIn, RemovalOut, StockCountIn, StockCountOut
 
 router = APIRouter(prefix="/api", tags=["stock"])
@@ -85,7 +86,8 @@ def create_removal(
         raise ApiError(
             422,
             "INSUFFICIENT_STOCK",
-            f"Insufficient stock: only {batch.quantity} available in this batch",
+            f"Insufficient stock: only {fmt_qty(batch.quantity)} "
+            f"{product.unit if product else 'units'} left in B-{batch.batch_id}",
         )
 
     batch.quantity -= qty
@@ -102,7 +104,7 @@ def create_removal(
 
     unit_name = product.unit if product and product.unit else "units"
     qty_fmt = format(Decimal(str(qty)).normalize(), "f")
-    removal_msg = f"Removed {qty_fmt} {unit_name} from batch {batch.batch_id}. Reason: {reason}."
+    removal_msg = f"Removed {qty_fmt} {unit_name} from B-{batch.batch_id}. Reason: {reason}."
 
     db.add(
         Notification(
@@ -122,7 +124,7 @@ def create_removal(
         key=f"removal:{removal.removal_id}",
         message=(
             f"Stock removed: {qty_fmt} {unit_name} from {product.name} "
-            f"batch {batch.batch_id} ({reason})"
+            f"B-{batch.batch_id} ({reason})"
         ),
         severity="info",
         product_id=batch.product_id,
@@ -132,6 +134,7 @@ def create_removal(
     if batch.quantity <= 0:
         resolve_alert(db, f"expiry:{batch.batch_id}", "Batch removed from stock")
         resolve_alert(db, f"pre_expiry:{batch.batch_id}", "Batch removed from stock")
+        end_markdown_if_empty(db, batch)
 
     refresh_after_change(db, batch.product_id)
 
@@ -174,6 +177,7 @@ def create_stock_count(
     if batch.quantity <= 0:
         resolve_alert(db, f"expiry:{batch.batch_id}", "Batch emptied by stock count")
         resolve_alert(db, f"pre_expiry:{batch.batch_id}", "Batch emptied by stock count")
+        end_markdown_if_empty(db, batch)
     record = StockCount(
         store_id=get_settings().store_id,
         batch_id=batch.batch_id,

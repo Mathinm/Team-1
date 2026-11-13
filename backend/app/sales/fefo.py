@@ -6,6 +6,9 @@ One sale = one database transaction (the caller commits). The eligible batches a
 Rules, matching the frontend mock backend:
   * A batch is sellable through its expiry date (inclusive), judged on the store's calendar day
     of the sale itself (soldAt), so late-arriving offline sales are not refused after midnight.
+  * A back-dated sale (soldAt given) can only use batches that were already received at that
+    time, and the API callers refuse a soldAt older than SALE_BACKDATE_HOURS (N1): otherwise
+    an old date would re-open expired stock.
   * Earliest expiry first; ties by batch id (older first).
   * Nothing sellable but stock exists  -> 422 BATCH_EXPIRED.
   * Quantity above sellable stock      -> 422 INSUFFICIENT_STOCK (nothing is deducted).
@@ -37,6 +40,9 @@ class BatchUsed:
     batch_id: int
     qty: Decimal
     expiry_date: date
+    unit_price: Decimal = Decimal("0")  # what this batch was billed at (marked-down or not)
+    original_price: Decimal = Decimal("0")  # the product's normal selling price
+    discount_percent: Decimal | None = None  # set when the batch had an active markdown
 
 
 @dataclass
@@ -49,6 +55,11 @@ class SaleResult:
     remaining_stock: Decimal
 
 
+def max_backdate() -> timedelta:
+    """How far in the past a sale's own time (soldAt) may be, for sales coming in by API."""
+    return timedelta(hours=get_settings().sale_backdate_hours)
+
+
 def store_today(now: datetime | None = None) -> date:
     now = now or datetime.now(timezone.utc)
     return now.astimezone(ZoneInfo(get_settings().store_timezone)).date()
@@ -59,6 +70,11 @@ def to_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo(get_settings().store_timezone))
     return dt.astimezone(timezone.utc)
+
+
+def _aware(dt: datetime) -> datetime:
+    """SQLite returns naive datetimes; they are UTC."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def fmt_qty(q: Decimal) -> str:
@@ -99,7 +115,11 @@ def record_sale(
     device_id: int | None = None,
     event_id: str | None = None,
     now: datetime | None = None,
+    max_age: timedelta | None = None,
 ) -> SaleResult:
+    """Record one sale. `max_age`: refuse a soldAt older than this (the API callers pass
+    max_backdate(); internal callers that load history, e.g. tests and reports, leave it None).
+    """
     now = now or datetime.now(timezone.utc)
     store_id = get_settings().store_id
     sku_key = (sku or "").strip().upper()
@@ -125,6 +145,11 @@ def record_sale(
     sold_at_utc = to_utc(sold_at) if sold_at else now
     if sold_at_utc > now + CLOCK_SKEW:
         raise ApiError(400, "INVALID", "Sale time cannot be in the future")
+    if sold_at is not None and max_age is not None and sold_at_utc < now - max_age:
+        hours = int(max_age.total_seconds() // 3600)
+        raise ApiError(
+            400, "INVALID", f"Sale time is too far in the past (more than {hours} hours ago)"
+        )
 
     # Expiry is judged on the day the sale HAPPENED, not the day it was received: a POS sale
     # made yesterday and sent after an outage still counts as made while the batch was valid.
@@ -140,8 +165,20 @@ def record_sale(
     ).all()
     total = sum((b.quantity for b in batches), Decimal(0))
     eligible = [b for b in batches if b.expiry_date >= today]
+    unexpired = sum((b.quantity for b in eligible), Decimal(0))
+    if sold_at is not None:
+        # A back-dated sale cannot use stock that arrived after the day it happened (N1).
+        # Compared by store day: a CSV date without a time means midnight, and stock received
+        # that morning must still count.
+        eligible = [b for b in eligible
+                    if b.received_at is None or store_today(_aware(b.received_at)) <= today]
     sellable = sum((b.quantity for b in eligible), Decimal(0))
 
+    if sellable <= 0 < unexpired:
+        raise ApiError(
+            422, "INSUFFICIENT_STOCK",
+            f"No stock of {product.name} had been received yet at the sale time",
+        )
     if sellable <= 0 and total > 0:
         raise ApiError(422, "BATCH_EXPIRED", "Batch expired: no unexpired stock to sell")
     if qty > sellable:
@@ -160,7 +197,6 @@ def record_sale(
         take = min(b.quantity, left)
         b.quantity -= take
         left -= take
-        used.append(BatchUsed(b.batch_id, take, b.expiry_date))
         if b.quantity <= 0:
             resolve_alert(db, f"expiry:{b.batch_id}", "Batch sold out")
             resolve_alert(db, f"pre_expiry:{b.batch_id}", "Batch sold out")
@@ -173,6 +209,12 @@ def record_sale(
         else:
             batch_unit_price = product.selling_price
         total_amount += take * batch_unit_price
+        used.append(BatchUsed(
+            b.batch_id, take, b.expiry_date,
+            unit_price=batch_unit_price,
+            original_price=product.selling_price,
+            discount_percent=md.discount_percent if md is not None else None,
+        ))
 
     amount = total_amount.quantize(Decimal("0.01"), ROUND_HALF_UP)
     avg_unit_price = (amount / qty).quantize(Decimal("0.01"), ROUND_HALF_UP)

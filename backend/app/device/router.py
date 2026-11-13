@@ -19,7 +19,7 @@ from app.device.schemas import DeviceSaleIn, ReadingIn, ReadingOut, parse_readin
 from app.errors import ApiError
 from app.models import Device, Sale, SensorReading
 from app.refrigeration.service import apply_reading, canonical_unit_id
-from app.sales.fefo import record_sale, to_utc
+from app.sales.fefo import max_backdate, record_sale, to_utc
 from app.sales.schemas import SaleOut, sale_out
 
 router = APIRouter(prefix="/api/device", tags=["device"])
@@ -50,6 +50,7 @@ def device_sale(
             recorded_by=f"device:{device.name}",
             device_id=device.device_id,
             event_id=body.eventId,
+            max_age=max_backdate(),
         )
         db.commit()
     except IntegrityError:  # two copies of the same event arrived at once

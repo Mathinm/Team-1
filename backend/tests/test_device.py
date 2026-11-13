@@ -1,6 +1,6 @@
 """Device API: device keys, eventId de-duplication, POS sales, sensor readings (FR-17, FR-19)."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
@@ -90,11 +90,13 @@ def test_pos_sale_blocks_expired_and_insufficient(client, seeded, pos_key):
 
 
 def test_sold_at_is_optional_and_original_time_is_kept(client, seeded, pos_key):
-    r = pos_sale(client, pos_key, event="old", soldAt="2026-10-18T08:15:00Z")
+    # an offline POS sale from last night keeps its own time (within SALE_BACKDATE_HOURS)
+    when = (datetime.now(timezone.utc) - timedelta(hours=20)).replace(microsecond=0)
+    r = pos_sale(client, pos_key, event="old", soldAt=when.isoformat().replace("+00:00", "Z"))
     assert r.status_code == 201
     sale = seeded.scalars(select(Sale)).one()
-    assert (sale.sold_at.year, sale.sold_at.month, sale.sold_at.day, sale.sold_at.hour) == (
-        2026, 10, 18, 8)
+    got = sale.sold_at if sale.sold_at.tzinfo else sale.sold_at.replace(tzinfo=timezone.utc)
+    assert got == when
     body = {"eventId": "nots", "sku": "TOM-01", "quantity": 1}
     assert client.post("/api/device/sales", json=body, headers=key(pos_key)).status_code == 201
 

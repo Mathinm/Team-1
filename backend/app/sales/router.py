@@ -7,7 +7,7 @@ from app.db import get_db
 from app.errors import ApiError
 from app.rbac import ADMIN, CASHIER, CurrentUser, require_roles
 from app.sales.csv_import import import_sales_csv
-from app.sales.fefo import record_sale
+from app.sales.fefo import max_backdate, record_sale
 from app.sales.schemas import CsvResult, SaleIn, SaleOut, sale_out
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
@@ -25,6 +25,7 @@ def create_sale(body: SaleIn, user: CurrentUser = Depends(sellers), db: Session 
         sold_at=body.soldAt,
         source="manual",
         recorded_by=user.user_id,
+        max_age=max_backdate(),
     )
     db.commit()
     return sale_out(result)

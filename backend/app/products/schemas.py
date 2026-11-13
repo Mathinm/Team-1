@@ -55,6 +55,7 @@ class ProductOut(BaseModel):
     lowStockThreshold: int
     active: bool
     stock: float
+    sellableStock: float = 0  # stock in batches that have not expired (N7: what can be sold)
 
 
 class SupplierCreate(BaseModel):

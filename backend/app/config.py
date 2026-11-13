@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     store_name: str = "Main Store"
     # "Expires today" is judged on the store's calendar day, not the server's (UTC in Docker).
     store_timezone: str = "Asia/Kolkata"
+    # A sale may carry its own time (soldAt: POS offline sync, CSV import). It may be at most
+    # this many hours in the past; older times are refused so expired stock can't be "sold"
+    # by back-dating a sale (FR-7, N1). 48 h covers an outage over a weekend night.
+    sale_backdate_hours: int = 48
 
     # ---- Login (SEC-1, #3)
     # How long a login token stays valid.

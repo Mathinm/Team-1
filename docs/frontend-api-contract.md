@@ -30,7 +30,7 @@ user out and sends them to the login page.
 | `PUT /users/{userId}` | Admin | `{name?, email?, role?}` | 200 user | #3 |
 | `PATCH /users/{userId}/deactivate` / `activate` | Admin | – | 200 user | #3 |
 | `PATCH /users/{userId}/unlock` **(added)** | Admin | – | 200 user; users now include `locked` | #18 |
-| `GET /products` **(added)** | any | – | 200 `[{productId, sku, name, category, unit, shelfLifeDays, storageType, tempMin, tempMax, costPrice, sellingPrice, lowStockThreshold, active, stock}]` (`stock` = total on hand) | #5 |
+| `GET /products` **(added)** | any | – | 200 `[{productId, sku, name, category, unit, shelfLifeDays, storageType, tempMin, tempMax, costPrice, sellingPrice, lowStockThreshold, active, stock, sellableStock}]` (`stock` = total on hand; `sellableStock` = stock in unexpired batches, #69) | #5, #69 |
 | `POST /products` | Admin, Manager | product fields + **`sku` (added)** | 201 product | #5 |
 | `PUT /products/{id}` | Admin, Manager | product fields | 200 product | #5 |
 | `PATCH /products/{id}/deactivate` | Admin, Manager | – | 200 product | #5 |
@@ -40,14 +40,14 @@ user out and sends them to the login page.
 | `POST /batches` | Admin, Manager, Inventory Staff | `{productId, supplierId, quantity, unit, receivedAt, expiryDate}` | 201 `{batchId, newStock}` | #6 |
 | `POST /restocks` | Admin, Manager, Inventory Staff | `{productId, quantity, unit}` | 201 `{newStock}` | #6 |
 | `GET /batches/fefo?productId={id}` | any | – | 200 `[{batchId, quantity, unit, supplier, receivedAt, expiryDate, daysInStore, daysToExpiry}]`, expiry ascending, only batches with quantity > 0 **(added: unit, supplier, receivedAt)** | #6 |
-| `POST /sales` | Admin, Cashier | `{sku, quantity, unit}` | 201 `{saleId, batchesUsed:[{batchId, qty, expiryDate}], remainingStock, productName, unit, amount}` **(added: expiryDate, productName, unit, amount)** | #7 |
-| `POST /sales/csv` | Admin, Cashier | multipart, field `file`; columns `sku,quantity,soldAt` | 200 `{imported, failed, errors:[{line, message}]}` | #7 |
+| `POST /sales` | Admin, Cashier | `{sku, quantity, unit}` | 201 `{saleId, batchesUsed:[{batchId, qty, expiryDate, unitPrice, originalPrice, discountPercent}], remainingStock, productName, unit, amount}` **(added: expiryDate, productName, unit, amount; #69: unitPrice, originalPrice, discountPercent (null when not marked down))**. Optional `soldAt` may be at most 5 min ahead and at most `SALE_BACKDATE_HOURS` (48) back, else 400 | #7, #69 |
+| `POST /sales/csv` | Admin, Cashier | multipart, field `file`; columns `sku,quantity,soldAt` | 200 `{imported, failed, errors:[{line, message}]}`; 409 `DUPLICATE_FILE` if the same file was already imported (a file where every row failed may be sent again) | #7, #69 |
 
 ## Sprint 2 — Stock management (issue #10)
 
 | Method & path | Who (SEC-2) | Request | Response | Owner issue |
 |---|---|---|---|---|
-| `POST /removals` **(added)** | Admin, Manager, Inventory Staff | `{batchId, qty, reason}`; reason 1–40 characters, e.g. Damaged, Temperature breach, Other | 201 `{removalId, batchId, qty, reason, recordedBy, recordedAt, remainingQuantity}`; 400 invalid input; 404 unknown batch; 422 `INSUFFICIENT_STOCK` if quantity exceeds available stock | #10 |
+| `POST /removals` **(added)** | Admin, Manager, Inventory Staff | `{batchId, qty, reason}`; reason 1–40 characters, e.g. Damaged, Temperature breach, Other | 201 `{removalId, batchId, qty, reason, recordedBy, recordedAt, remainingQuantity}`; 400 invalid input; 404 unknown batch; 422 `INSUFFICIENT_STOCK` ("only 9 kg left in B-104") if quantity exceeds the batch. Emptying a marked-down batch (removal or count to 0) sets its markdown status to `ended` | #10, #69 |
 | `POST /stock-counts` **(added)** | Admin, Manager, Inventory Staff | `{batchId, countedQuantity, reason}`; `countedQuantity` ≥ 0; reason 1–255 characters | 201 `{stockCountId, batchId, systemQuantity, countedQuantity, variance, reason, recordedBy, recordedAt}`; variance = counted − system; batch quantity updated to counted quantity; 400 invalid input; 404 unknown batch | #10 |
 
 ## Sprint 2 — Alerts and refrigeration (issues #13, #14, #15)

@@ -223,14 +223,16 @@ def test_csv_stock_errors_are_per_row(client, seeded, cashier):
 
 
 def test_csv_handles_excel_quirks(client, seeded, cashier):
+    day = (store_today() - timedelta(days=1)).isoformat()  # yesterday: inside the 48 h window
     text = (
         "\ufeffSKU , Quantity,SoldAt\r\n\r\n"
-        "tom-01,1,2026-10-19\r\nBAN-01, 2 ,2026-10-19T09:30\r\n"
+        f"tom-01,1,{day}\r\nBAN-01, 2 ,{day}T09:30\r\n"
     )
     r = upload(client, cashier, text)
     assert r.json() == {"imported": 2, "failed": 0, "errors": []}
     sold = seeded.scalars(select(Sale).order_by(Sale.sale_id)).all()
-    assert sold[0].sold_at.date().isoformat() in ("2026-10-18", "2026-10-19")  # IST midnight
+    prev = (store_today() - timedelta(days=2)).isoformat()
+    assert sold[0].sold_at.date().isoformat() in (prev, day)  # IST midnight
 
 
 def test_csv_bad_sold_at_and_bad_quantity_are_row_errors(client, seeded, cashier):
@@ -269,7 +271,36 @@ def test_sale_time_in_the_future_is_rejected(client, seeded, cashier):
 def test_sale_time_a_little_ahead_or_in_the_past_is_fine(client, seeded, cashier):
     soon = (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()
     assert sell(client, cashier, sku="TOM-01", quantity=1, soldAt=soon).status_code == 201
-    assert sell(client, cashier, sku="TOM-01", quantity=1, soldAt="2026-01-01").status_code == 201
+    earlier = (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat()
+    assert sell(client, cashier, sku="TOM-01", quantity=1, soldAt=earlier).status_code == 201
+
+
+# ---- back-dated sales (N1): an old soldAt must not re-open expired stock ---------------
+def test_sale_time_older_than_the_backdate_window_is_refused(client, seeded, cashier):
+    for old in ("2026-01-01", (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()):
+        r = sell(client, cashier, sku="BRD-01", quantity=1, soldAt=old)
+        assert r.status_code == 400, old
+        assert "too far in the past" in r.json()["error"]["message"]
+    assert stock(seeded, 5) == 7  # the expired bread was not sold
+
+
+def test_backdated_sale_cannot_use_stock_received_after_it(client, seeded, cashier):
+    # all tomato was received 2 days ago; a sale "from" before that has nothing to take
+    seeded.query(Batch).filter(Batch.product_id == 1).update(
+        {Batch.received_at: datetime.now(timezone.utc)})
+    seeded.commit()
+    earlier = (datetime.now(timezone.utc) - timedelta(hours=40)).isoformat()
+    r = sell(client, cashier, sku="TOM-01", quantity=1, soldAt=earlier)
+    assert r.status_code == 422 and "had been received" in r.json()["error"]["message"]
+    assert stock(seeded, 1) == 37
+
+
+def test_csv_row_with_an_old_date_is_a_row_error(client, seeded, cashier):
+    r = upload(client, cashier, "sku,quantity,soldAt\nBRD-01,1,2020-01-01\nTOM-01,1,\n")
+    assert r.json()["imported"] == 1
+    assert r.json()["errors"][0]["line"] == 2
+    assert "too far in the past" in r.json()["errors"][0]["message"]
+    assert stock(seeded, 5) == 7
 
 
 def test_quantity_typos_like_underscore_or_exponent_are_rejected(client, seeded, cashier):
