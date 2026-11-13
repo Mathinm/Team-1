@@ -29,9 +29,40 @@ ADMIN, MANAGER, STAFF, CASHIER = "Admin", "Manager", "Inventory Staff", "Cashier
 # Screens each role may open, returned by GET /api/auth/me so the UI can hide the rest.
 # Keep in step with MENU in frontend/src/config/roles.js. The server still checks every call.
 ROLE_MENUS: dict[str, list[str]] = {
-    ADMIN: ["products", "stock", "sales", "users"],
-    MANAGER: ["products", "stock"],
-    STAFF: ["products", "stock"],
+    ADMIN: [
+        "dashboard",
+        "products",
+        "stock",
+        "stock-count",
+        "removals",
+        "markdowns",
+        "sales",
+        "alerts",
+        "refrigeration",
+        "reports",
+        "users",
+    ],
+    MANAGER: [
+        "dashboard",
+        "products",
+        "stock",
+        "stock-count",
+        "removals",
+        "markdowns",
+        "alerts",
+        "refrigeration",
+        "reports",
+    ],
+    STAFF: [
+        "dashboard",
+        "products",
+        "stock",
+        "stock-count",
+        "removals",
+        "markdowns",
+        "alerts",
+        "refrigeration",
+    ],
     CASHIER: ["sales"],
 }
 SESSION_ENDED = "Your session has ended. Please log in again."

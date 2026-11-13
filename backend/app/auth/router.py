@@ -45,9 +45,6 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     """
     user = db.scalar(select(User).where(User.user_id == body.userId.strip()))
     ok = verify_password(body.password, user.password_hash if user else None)
-    if user is not None and user.active and is_locked(user):
-        log.info("login refused, account locked: user=%s", user.user_id)
-        raise locked_error()
     if not ok or user is None or not user.active:
         log.info("login failed: user=%s", body.userId)  # never log the password
         if user is not None and user.active and record_failed_login(user):
@@ -55,6 +52,10 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
             raise locked_error()  # this was the 5th wrong password in a row
         db.commit()
         raise ApiError(401, "INVALID_CREDENTIALS", INVALID_LOGIN)
+
+    if is_locked(user):
+        log.info("login refused, account locked: user=%s", user.user_id)
+        raise locked_error()
 
     if requires_otp(user):  # NFR-10: Manager and Admin also need the code we email them
         if not body.otpCode:

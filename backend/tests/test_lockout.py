@@ -55,6 +55,20 @@ def test_tc_auth_03_unknown_user_never_shows_locked(client):
     assert set(failures(client, "ghost99", 7)) == {401}  # does not reveal that IDs exist
 
 
+def test_n9_locked_account_wrong_password_gives_same_401_as_unknown_user(client):
+    make_user("staff1", "Inventory Staff")
+    failures(client, "staff1", 5)  # staff1 is now locked
+    # N9: A wrong password on a locked account answers 401 (not 423), matching an unknown user
+    wrong = login(client, "staff1", "wrong-password")
+    unknown = login(client, "ghost99", "wrong-password")
+    assert wrong.status_code == 401
+    assert wrong.json() == unknown.json()
+    # Correct password reveals that the account is locked (423)
+    correct = login(client, "staff1")
+    assert correct.status_code == 423
+    assert correct.json()["error"]["code"] == "ACCOUNT_LOCKED"
+
+
 def test_tc_auth_03_lock_is_logged(client, caplog):
     make_user("staff1", "Inventory Staff")
     with caplog.at_level(logging.WARNING, logger="pms.security"):
