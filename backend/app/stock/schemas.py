@@ -21,9 +21,9 @@ class StockCountOut(BaseModel):
 
 
 class RemovalIn(BaseModel):
-    batchId: StrictInt = Field(gt=0)
-    qty: Decimal
-    reason: str = Field(min_length=1, max_length=40)
+    batchId: StrictInt = Field(gt=0, le=2_147_483_647)
+    qty: Decimal | str  # str is kept as typed so check_quantity() can reject '1_0' and '1e1'
+    reason: str = Field(min_length=1, max_length=255)  # trimmed and cut to 40 by the endpoint
 
 
 class RemovalOut(BaseModel):

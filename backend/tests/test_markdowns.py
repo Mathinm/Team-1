@@ -281,3 +281,35 @@ def test_scheduler_runs_markdowns_job(client, db, curd_product, Session):
     assert len(results["markdowns"]) == 1
     assert results["markdowns"][0]["batchId"] == 301
     assert float(results["markdowns"][0]["discountPercent"]) == 15.0
+
+
+# ---- S3-6: markdown rule input limits (same limits as the Markdowns screen) ----------------
+def test_markdown_rule_rejects_values_the_database_cannot_hold(client, db, curd_product):
+    mgr = auth("mgr1", "Manager")
+    base = {"productId": curd_product.product_id, "daysBeforeExpiry": 2, "discountPercent": 10}
+    for bad in (
+        {"discountPercent": "0.001"},  # would be saved as 0%
+        {"discountPercent": "10.123"},
+        {"daysBeforeExpiry": 366},
+        {"daysBeforeExpiry": 10**12},
+        {"productId": 10**30},
+        {"productId": 0},
+        {"name": "x" * 121},
+        {"productId": None, "category": "x" * 41},
+        {"productId": None, "category": "   "},
+    ):
+        r = client.post("/api/markdown-rules", json={**base, **bad}, headers=mgr)
+        assert r.status_code == 400, (bad, r.text)
+    assert client.get("/api/markdown-rules", headers=mgr).json() == []
+
+
+def test_markdown_rule_accepts_the_limits_and_trims_the_category(client, db, curd_product):
+    mgr = auth("mgr1", "Manager")
+    r = client.post(
+        "/api/markdown-rules",
+        json={"category": "  Dairy ", "daysBeforeExpiry": 365, "discountPercent": "12.5",
+              "name": "x" * 120},
+        headers=mgr,
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["category"] == "Dairy" and r.json()["daysBeforeExpiry"] == 365
