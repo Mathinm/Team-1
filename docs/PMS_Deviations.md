@@ -116,6 +116,7 @@ This document formally records all deviations between the initial specifications
 - **Final Resolution:**
   - **NFR-4:** Long-term 99.5% monthly uptime cannot be empirically measured over a 2-week development sprint. Accepted (**`A`**) based on verified Docker container restart policy (`restart: unless-stopped`) and automated health checks (`backend/tests/test_health.py` and `docker-compose.yml` healthcheck).
   - **NFR-6:** A formal usability trial with outside staff was not conducted prior to release. Detailed test plan and walkthrough materials were drafted (`docs/NFR-6-usability-trial.md`), but the requirement is marked Not Yet Formally Verified (**`N`**) in the RTM.
+  - **Final status (14 Nov 2026):** The trial with new users was not conducted due to time constraints. Responsive layout was checked on phone and tablet sizes, and every routine task was run end to end in a real browser for all four roles (42 checks, 41 passed; the one failure, N18, is a low-stock alert text issue, not usability). Recorded in SRS v1.1 (Revision History and the note under the NFR table).
 - **Impact:** Accurate reporting of verification status aligned with evaluator standards.
 
 ---
@@ -133,4 +134,4 @@ This document formally records all deviations between the initial specifications
 | Password Hashing | Salted Hashes (bcrypt) | Argon2id via `argon2-cffi` | **Enhanced Security (Deviation 5)** |
 | Data Retention (NFR-7) | 2-Year Retention | Append-only / No Deletions | **Accepted (`A`) (Deviation 7)** |
 | Availability (NFR-4) | 99.5% Uptime | `unless-stopped` + Health Checks | **Accepted (`A`) (Deviation 10)** |
-| Usability Training (NFR-6) | 30-min Trial | Protocol documented, trial pending | **Not Yet Verified (`N`) (Deviation 10)** |
+| Usability Training (NFR-6) | 30-min Trial | Protocol documented, trial not conducted (future work) | **Not Yet Verified (`N`) (Deviation 10)** |
